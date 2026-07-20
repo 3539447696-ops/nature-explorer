@@ -269,7 +269,12 @@ export default function App() {
           <h2 onClick={() => setTrayOpen((v) => !v)}>
             {loadingSpecies ? '正在探索附近的生物…' : locationName ? `${locationName}附近的生物` : '附近的生物'}
           </h2>
-          <button className="suggestion-chip" onClick={refreshHere}>🔄 刷新</button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button className="suggestion-chip" onClick={refreshHere}>🔄 刷新</button>
+            <button className="tray-toggle-btn" onClick={() => setTrayOpen((v) => !v)}>
+              {trayOpen ? '收起 ▾' : '展开 ▴'}
+            </button>
+          </div>
         </div>
         <div className="tray-list">
           {loadingSpecies ? (

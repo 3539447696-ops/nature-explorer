@@ -138,7 +138,10 @@ body {
 /* ---------- 地图 ---------- */
 #map { position: fixed; inset: 0; z-index: 1; }
 .leaflet-control-zoom { display: none; }
-.leaflet-container { background: #cfe3d4; font-family: var(--animal-font); }
+.leaflet-container { background: #eef3ea; font-family: var(--animal-font); }
+.leaflet-tile { will-change: auto; }
+/* 地图淡入，避免闪烁大色块 */
+.leaflet-fade-anim .leaflet-tile { transition: opacity 0.2s linear; }
 
 .species-marker {
   display: flex; align-items: center; justify-content: center;
@@ -172,12 +175,17 @@ body {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 950;
   background: var(--animal-bg-content); border-radius: 24px 24px 0 0;
   box-shadow: var(--shadow-lg); padding: 6px 0 14px;
-  transform: translateY(calc(100% - 128px));
+  transform: translateY(calc(100% - 56px));
   transition: transform 0.35s var(--animal-ease);
   max-height: 72vh; display: flex; flex-direction: column;
   border-top: 2px solid var(--animal-border);
 }
 .tray.open { transform: translateY(0); }
+.tray-toggle-btn {
+  padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 700;
+  background: var(--animal-primary); color: #fff9e3; border: none; cursor: pointer;
+  font-family: inherit; white-space: nowrap;
+}
 .tray-handle { width: 46px; height: 5px; border-radius: 3px; background: #d8d2c4; margin: 8px auto 4px; cursor: grab; }
 .tray-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 18px; }
 .tray-header h2 { font-size: 16px; color: var(--animal-text); font-weight: 700; cursor: pointer; }
@@ -216,7 +224,7 @@ body {
 
 /* ---------- AI 浮动按钮 ---------- */
 .ai-fab {
-  position: fixed; right: 16px; bottom: 148px; z-index: 960;
+  position: fixed; right: 16px; bottom: 76px; z-index: 960;
   display: flex; align-items: center; gap: 8px; padding: 12px 18px;
   border-radius: var(--animal-radius-pill);
   background: var(--animal-primary); color: #fff9e3; font-weight: 700;
