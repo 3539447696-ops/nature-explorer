@@ -6,7 +6,7 @@
 /* 点击地图探索的引导提示条 */
 .map-hint {
   position: fixed;
-  top: 116px;
+  top: 158px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 940;
@@ -136,12 +136,12 @@ body {
 .avatar-btn img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ---------- 地图 ---------- */
-#map { position: fixed; inset: 0; z-index: 1; }
+#map { position: fixed; inset: 0; z-index: 1; background: #eae3d2; }
 .leaflet-control-zoom { display: none; }
-.leaflet-container { background: #eef3ea; font-family: var(--animal-font); }
+.leaflet-container { background: #eae3d2; font-family: var(--animal-font); }
+.leaflet-tile-pane { background: #eae3d2; }
 .leaflet-tile { will-change: auto; }
-/* 地图淡入，避免闪烁大色块 */
-.leaflet-fade-anim .leaflet-tile { transition: opacity 0.2s linear; }
+.leaflet-fade-anim .leaflet-tile { transition: opacity 0.15s linear; }
 
 .species-marker {
   display: flex; align-items: center; justify-content: center;
@@ -163,9 +163,32 @@ body {
 }
 @keyframes pulse { 0%{transform:scale(.6);opacity:1} 100%{transform:scale(2.2);opacity:0} }
 
+/* ---------- 地点搜索框 ---------- */
+.search-bar { position: fixed; top: 62px; left: 0; right: 0; z-index: 920; padding: 6px 14px; }
+.search-input-wrap {
+  display: flex; align-items: center; gap: 6px; background: #fff;
+  border-radius: 24px; box-shadow: var(--shadow-soft); padding: 0 12px;
+  border: 2px solid transparent; transition: border-color 0.2s ease; max-width: 520px; margin: 0 auto;
+}
+.search-input-wrap:focus-within { border-color: var(--animal-primary); }
+.search-icon { font-size: 15px; flex-shrink: 0; }
+.search-input {
+  flex: 1; height: 40px; border: none; outline: none; background: transparent;
+  font-size: 14px; font-family: inherit; color: var(--animal-text-body);
+}
+.search-clear { background: none; border: none; cursor: pointer; color: var(--animal-text-secondary); font-size: 14px; flex-shrink: 0; }
+.search-results {
+  max-width: 520px; margin: 6px auto 0; background: #fff; border-radius: 16px;
+  box-shadow: var(--shadow-lg); overflow: hidden; border: 1.5px solid #efe9db; max-height: 300px; overflow-y: auto;
+}
+.search-item { padding: 12px 16px; font-size: 13px; color: var(--animal-text-body); cursor: pointer; border-bottom: 1px solid #f3eee1; line-height: 1.4; }
+.search-item:last-child { border-bottom: none; }
+.search-item:hover { background: var(--animal-primary-bg); }
+.search-empty { padding: 16px; text-align: center; color: var(--animal-text-secondary); font-size: 13px; }
+
 /* ---------- 分类过滤条 ---------- */
 .filter-bar {
-  position: fixed; top: 66px; left: 0; right: 0; z-index: 900;
+  position: fixed; top: 112px; left: 0; right: 0; z-index: 900;
   display: flex; gap: 8px; padding: 8px 14px; overflow-x: auto; scrollbar-width: none;
 }
 .filter-bar::-webkit-scrollbar { display: none; }

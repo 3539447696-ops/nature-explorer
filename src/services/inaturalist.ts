@@ -94,31 +94,44 @@ export async function fetchSpeciesDetail(taxonId: number): Promise<Partial<Speci
 
 /** 反向地理编码：坐标 → 地名（OpenStreetMap Nominatim） */
 export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
-  // zoom=13 能拿到更细的自然地标（山峰/水体/公园等）；accept-language 强制中文
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=zh-CN,zh&zoom=13`;
+  // zoom=14 更靠近地物级；addressdetails+namedetails 拿到地点名称与自然地标
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=zh-CN,zh&zoom=14&addressdetails=1&namedetails=1`;
   try {
     const res = await fetch(url, { headers: { Accept: 'application/json', 'Accept-Language': 'zh-CN,zh' } });
     if (!res.ok) throw new Error('geocode failed');
     const json = await res.json();
     const a = json.address || {};
 
-    // 统一的行政区（市/区级），保证尺度一致
+    // 行政区：优先市/区/县级，避免出现"辽宁省"这种过大范围
     const region =
-      a.city || a.town || a.municipality || a.county ||
-      a.state_district || a.state || a.province || '';
+      a.city || a.town || a.municipality || a.county || a.district ||
+      a.suburb || a.village || a.state_district ||
+      // 省级作为最后兜底
+      a.state || a.province || a.region || '';
 
-    // 自然地标（户外场景优先）：山峰、山脉、水体、山谷、公园、保护区等
-    const natural =
+    // 自然地标：优先 address 里的自然字段
+    let natural =
       a.peak || a.mountain || a.mountain_range || a.hill ||
       a.valley || a.water || a.river || a.stream || a.lake || a.bay ||
       a.wood || a.forest || a.nature_reserve || a.national_park ||
-      a.protected_area || a.park || a.island;
+      a.protected_area || a.park || a.island || a.glacier || a.wetland;
+
+    // 若没有，尝试用返回的地点名（当该点本身是自然地物时）
+    if (!natural && json.name) {
+      const cat = json.category || '';
+      const typ = json.type || '';
+      // 只在明显是自然/地理要素时采用 name，避免把马路、建筑当地标
+      if (['natural', 'water', 'waterway', 'leisure', 'boundary', 'place'].includes(cat) ||
+          ['peak', 'volcano', 'water', 'river', 'valley', 'wood', 'forest', 'nature_reserve',
+           'national_park', 'protected_area', 'bay', 'wetland', 'glacier', 'ridge', 'cliff'].includes(typ)) {
+        natural = json.name;
+      }
+    }
 
     const parts: string[] = [];
     if (region) parts.push(region);
     if (natural && natural !== region) parts.push(natural);
     else {
-      // 没有自然地标时，补一个次级行政区，保持信息量
       const sub = a.suburb || a.district || a.village || a.town;
       if (sub && sub !== region) parts.push(sub);
     }
@@ -133,6 +146,32 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
     return '未知区域';
   } catch {
     return null;
+  }
+}
+
+/** 正向地理编码：地名 → 坐标（用于搜索框） */
+export interface PlaceResult {
+  name: string;
+  lat: number;
+  lng: number;
+}
+export async function searchPlace(query: string): Promise<PlaceResult[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&accept-language=zh-CN,zh&limit=6`;
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json', 'Accept-Language': 'zh-CN,zh' } });
+    if (!res.ok) throw new Error('search failed');
+    const arr = await res.json();
+    return (arr || []).map((item: any) => ({
+      name: item.display_name
+        ? String(item.display_name).split(',').slice(0, 3).join(', ')
+        : (item.name || q),
+      lat: parseFloat(item.lat),
+      lng: parseFloat(item.lon),
+    })).filter((p: PlaceResult) => !isNaN(p.lat) && !isNaN(p.lng));
+  } catch {
+    return [];
   }
 }
 

@@ -4,6 +4,7 @@ import { Tag, Notification, Loading } from 'animal-island-ui';
 import { useAuth } from './contexts/AuthContext';
 import { AuthPage } from './components/AuthPage';
 import { MapView } from './components/MapView';
+import { SearchBar } from './components/SearchBar';
 import { SpeciesCard } from './components/SpeciesCard';
 import { SpeciesDetailModal } from './components/SpeciesDetailModal';
 import { CollectionDrawer } from './components/CollectionDrawer';
@@ -247,6 +248,9 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* 地点搜索框 */}
+      <SearchBar onSelect={(lat, lng) => exploreLocation(lat, lng)} />
 
       {/* 分类过滤 */}
       <div className="filter-bar">

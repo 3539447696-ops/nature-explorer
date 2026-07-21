@@ -34,13 +34,14 @@ export function MapView({ center, species, collectedIds, onMarkerClick, onMapCli
       markerZoomAnimation: false,
     }).setView(center || [39.9042, 116.4074], 12);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
+    // 高德地图瓦片：中国境内全中文标注、国内加载快
+    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+      maxZoom: 18,
       minZoom: 3,
-      subdomains: 'abcd',
+      subdomains: '1234',
       updateWhenZooming: false,  // 缩放过程中不刷新瓦片，缩放更顺
-      updateWhenIdle: true,      // 停止操作后再加载瓦片
-      keepBuffer: 4,             // 多缓存周边瓦片，减少空白（绿色大色块）
+      updateWhenIdle: false,     // 拖动时也加载，减少停下后才出图的空白
+      keepBuffer: 6,             // 大幅增加缓存的周边瓦片，减少空白色块
     }).addTo(map);
 
     speciesLayerRef.current = L.layerGroup().addTo(map);
