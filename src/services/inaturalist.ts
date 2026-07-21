@@ -94,17 +94,38 @@ export async function fetchSpeciesDetail(taxonId: number): Promise<Partial<Speci
 
 /** 反向地理编码：坐标 → 地名（OpenStreetMap Nominatim） */
 export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=zh-CN,zh&zoom=12`;
+  // zoom=13 能拿到更细的自然地标（山峰/水体/公园等）；accept-language 强制中文
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=zh-CN,zh&zoom=13`;
   try {
     const res = await fetch(url, { headers: { Accept: 'application/json', 'Accept-Language': 'zh-CN,zh' } });
     if (!res.ok) throw new Error('geocode failed');
     const json = await res.json();
     const a = json.address || {};
-    const big = a.city || a.town || a.municipality || a.county || a.state_district || a.state || a.province;
-    const small = a.district || a.suburb || a.village || a.neighbourhood || a.road;
-    const parts = [big, small].filter(Boolean);
+
+    // 统一的行政区（市/区级），保证尺度一致
+    const region =
+      a.city || a.town || a.municipality || a.county ||
+      a.state_district || a.state || a.province || '';
+
+    // 自然地标（户外场景优先）：山峰、山脉、水体、山谷、公园、保护区等
+    const natural =
+      a.peak || a.mountain || a.mountain_range || a.hill ||
+      a.valley || a.water || a.river || a.stream || a.lake || a.bay ||
+      a.wood || a.forest || a.nature_reserve || a.national_park ||
+      a.protected_area || a.park || a.island;
+
+    const parts: string[] = [];
+    if (region) parts.push(region);
+    if (natural && natural !== region) parts.push(natural);
+    else {
+      // 没有自然地标时，补一个次级行政区，保持信息量
+      const sub = a.suburb || a.district || a.village || a.town;
+      if (sub && sub !== region) parts.push(sub);
+    }
+
     const uniq = parts.filter((v, i) => parts.indexOf(v) === i);
     if (uniq.length) return uniq.join(' · ');
+
     if (json.display_name) {
       const segs = String(json.display_name).split(',').map((s: string) => s.trim()).filter(Boolean);
       return segs.slice(0, 2).reverse().join(' · ');

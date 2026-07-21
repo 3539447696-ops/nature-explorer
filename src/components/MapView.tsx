@@ -17,6 +17,7 @@ export function MapView({ center, species, collectedIds, onMarkerClick, onMapCli
   const mapRef = useRef<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const speciesLayerRef = useRef<L.LayerGroup | null>(null);
+  const lastCenterRef = useRef<string>('');
   const clickRef = useRef(onMarkerClick);
   clickRef.current = onMarkerClick;
   const mapClickRef = useRef(onMapClick);
@@ -28,22 +29,22 @@ export function MapView({ center, species, collectedIds, onMarkerClick, onMapCli
     const map = L.map('map', {
       zoomControl: false,
       attributionControl: false,
-      preferCanvas: true,     // 用 canvas 渲染，性能更好
-      fadeAnimation: true,
-    }).setView(center || [39.9042, 116.4074], 13);
+      zoomSnap: 0.5,           // 更平滑的缩放挡位
+      wheelDebounceTime: 40,   // 滚轮缩放防抖，减少卡顿
+      markerZoomAnimation: false,
+    }).setView(center || [39.9042, 116.4074], 12);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       maxZoom: 19,
       minZoom: 3,
       subdomains: 'abcd',
-      updateWhenIdle: true,     // 拖动停止后再加载瓦片，减少卡顿
-      keepBuffer: 2,
+      updateWhenZooming: false,  // 缩放过程中不刷新瓦片，缩放更顺
+      updateWhenIdle: true,      // 停止操作后再加载瓦片
+      keepBuffer: 4,             // 多缓存周边瓦片，减少空白（绿色大色块）
     }).addTo(map);
 
-    // 物种 marker 用图层组统一管理
     speciesLayerRef.current = L.layerGroup().addTo(map);
 
-    // 点击地图空白处 → 切换到该地点探索
     map.on('click', (e: L.LeafletMouseEvent) => {
       mapClickRef.current?.(e.latlng.lat, e.latlng.lng);
     });
@@ -51,18 +52,26 @@ export function MapView({ center, species, collectedIds, onMarkerClick, onMapCli
     mapRef.current = map;
     onMapRef?.(map);
 
-    // 修复容器尺寸导致的渲染问题（绿色大色块的常见原因之一）
-    setTimeout(() => map.invalidateSize(), 200);
+    // 初始化后修正一次容器尺寸（消除首次渲染的空白色块）
+    setTimeout(() => map.invalidateSize(), 100);
+    setTimeout(() => map.invalidateSize(), 500);
+
+    // 监听窗口大小变化，避免容器尺寸变化导致的空白
+    const onResize = () => map.invalidateSize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 用户位置变化 → 移动视野 + 更新用户标记
+  // 用户位置变化 → 移动视野（仅在 center 真正改变时，且不带动画避免卡顿）
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !center) return;
-    // 保留当前缩放级别，只在首次或跨度大时才 setView
-    map.setView(center, map.getZoom() || 13, { animate: true });
-    map.invalidateSize();
+    const key = `${center[0].toFixed(4)},${center[1].toFixed(4)}`;
+    if (key !== lastCenterRef.current) {
+      lastCenterRef.current = key;
+      map.setView(center, map.getZoom() || 12, { animate: false });
+    }
 
     if (userMarkerRef.current) map.removeLayer(userMarkerRef.current);
     const icon = L.divIcon({
@@ -74,7 +83,7 @@ export function MapView({ center, species, collectedIds, onMarkerClick, onMapCli
     userMarkerRef.current = L.marker(center, { icon, zIndexOffset: 1000 }).addTo(map);
   }, [center]);
 
-  // 物种变化 → 重绘 marker（用图层组，避免逐个操作卡顿）
+  // 物种变化 → 重绘 marker
   useEffect(() => {
     const map = mapRef.current;
     const layer = speciesLayerRef.current;
@@ -105,7 +114,8 @@ export function MapView({ center, species, collectedIds, onMarkerClick, onMapCli
       marker.on('click', () => clickRef.current(sp));
       layer.addLayer(marker);
     });
-  }, [species, collectedIds, center]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [species, collectedIds]);
 
   return <div id="map" />;
 }

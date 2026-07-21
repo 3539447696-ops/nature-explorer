@@ -13,6 +13,7 @@ import { CommunityDrawer } from './components/CommunityDrawer';
 import { SharePanel } from './components/SharePanel';
 import { fetchNearbySpecies, reverseGeocode } from './services/inaturalist';
 import { CollectionService } from './services/collection';
+import { getGeoInfo, type GeoInfo } from './services/geoinfo';
 import { FILTERS, DEFAULT_LATLNG, getTaxonMeta } from './constants';
 import type { Species } from './types';
 
@@ -26,6 +27,7 @@ export default function App() {
   // 地图与数据状态
   const [center, setCenter] = useState<[number, number] | null>(null);
   const [locationName, setLocationName] = useState<string | null>(null);
+  const [geoInfo, setGeoInfo] = useState<GeoInfo | null>(null);
   const [species, setSpecies] = useState<Species[]>([]);
   const [loadingSpecies, setLoadingSpecies] = useState(false);
   const [filter, setFilter] = useState('all');
@@ -97,9 +99,11 @@ export default function App() {
   const locateUser = useCallback(() => {
     const applyLocation = async (lat: number, lng: number) => {
       setCenter([lat, lng]);
+      setGeoInfo(null);
       const name = await reverseGeocode(lat, lng);
       setLocationName(name);
       loadSpecies(lat, lng, filter);
+      getGeoInfo(lat, lng).then(setGeoInfo);
     };
     if (!navigator.geolocation) {
       applyLocation(DEFAULT_LATLNG[0], DEFAULT_LATLNG[1]);
@@ -121,19 +125,23 @@ export default function App() {
     if (!map) return;
     const c = map.getCenter();
     setCenter([c.lat, c.lng]);
+    setGeoInfo(null);
     const name = await reverseGeocode(c.lat, c.lng);
     setLocationName(name);
     loadSpecies(c.lat, c.lng, filter);
+    getGeoInfo(c.lat, c.lng).then(setGeoInfo);
   }, [filter, loadSpecies]);
 
   /* ---------- 点击地图任意位置 → 探索该地点 ---------- */
   const exploreLocation = useCallback(async (lat: number, lng: number) => {
     setShowMapHint(false);
     setCenter([lat, lng]);
+    setGeoInfo(null);
     Notification.info('正在探索这个地点…');
     const name = await reverseGeocode(lat, lng);
     setLocationName(name);
     loadSpecies(lat, lng, filter);
+    getGeoInfo(lat, lng).then(setGeoInfo);
   }, [filter, loadSpecies]);
 
   /* ---------- 切换分类 ---------- */
@@ -276,6 +284,18 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* 地点自然信息 */}
+        {geoInfo && (
+          <div className="geo-info">
+            <span className="geo-chip">🧭 {geoInfo.latText}, {geoInfo.lngText}</span>
+            {geoInfo.elevation != null && (
+              <span className="geo-chip">⛰️ 海拔 {geoInfo.elevation} m</span>
+            )}
+            <span className="geo-chip">{geoInfo.climateZone}</span>
+            <div className="geo-hint">🌿 {geoInfo.climateHint}</div>
+          </div>
+        )}
         <div className="tray-list">
           {loadingSpecies ? (
             Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton-card" />)

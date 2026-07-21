@@ -193,6 +193,11 @@ body {
 .tray-list::-webkit-scrollbar { display: none; }
 .tray-empty { color: var(--animal-text-secondary); font-size: 14px; padding: 24px; text-align: center; width: 100%; }
 
+/* 地点自然信息 */
+.geo-info { padding: 2px 18px 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.geo-chip { font-size: 11px; font-weight: 600; color: var(--animal-text-body); background: var(--animal-primary-bg); padding: 4px 10px; border-radius: 12px; white-space: nowrap; }
+.geo-hint { width: 100%; font-size: 12px; color: var(--animal-text-secondary); line-height: 1.5; margin-top: 2px; font-weight: 500; }
+
 /* ---------- 物种卡片 ---------- */
 .species-card {
   flex-shrink: 0; width: 156px; cursor: pointer; position: relative;
