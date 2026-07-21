@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { searchPlace, type PlaceResult } from '../services/inaturalist';
 
 interface Props {
-  onSelect: (lat: number, lng: number, name: string) => void;
+  onSelect: (place: PlaceResult) => void;
 }
 
 /** 地点搜索框：输入地名 → 下拉结果 → 点击跳转到该地点探索。 */
@@ -32,9 +32,9 @@ export function SearchBar({ onSelect }: Props) {
   };
 
   const pick = (r: PlaceResult) => {
-    onSelect(r.lat, r.lng, r.name);
+    onSelect(r);
     setOpen(false);
-    setQuery(r.name.split(',')[0]);
+    setQuery(r.name);
   };
 
   return (
@@ -61,7 +61,13 @@ export function SearchBar({ onSelect }: Props) {
           ) : (
             results.map((r, i) => (
               <div className="search-item" key={i} onClick={() => pick(r)}>
-                📍 {r.name}
+                <span className="search-item-icon">{r.isNatural ? '⛰️' : '📍'}</span>
+                <span className="search-item-text">
+                  <span className="search-item-name">{r.name}</span>
+                  {r.fullName && r.fullName !== r.name && (
+                    <span className="search-item-sub">{r.fullName}</span>
+                  )}
+                </span>
               </div>
             ))
           )}

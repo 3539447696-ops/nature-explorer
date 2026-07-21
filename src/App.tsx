@@ -12,7 +12,7 @@ import { AIDrawer } from './components/AIDrawer';
 import { UserDrawer } from './components/UserDrawer';
 import { CommunityDrawer } from './components/CommunityDrawer';
 import { SharePanel } from './components/SharePanel';
-import { fetchNearbySpecies, reverseGeocode } from './services/inaturalist';
+import { fetchNearbySpecies, reverseGeocode, type PlaceResult } from './services/inaturalist';
 import { CollectionService } from './services/collection';
 import { getGeoInfo, type GeoInfo } from './services/geoinfo';
 import { FILTERS, DEFAULT_LATLNG, getTaxonMeta } from './constants';
@@ -133,17 +133,31 @@ export default function App() {
     getGeoInfo(c.lat, c.lng).then(setGeoInfo);
   }, [filter, loadSpecies]);
 
-  /* ---------- 点击地图任意位置 → 探索该地点 ---------- */
-  const exploreLocation = useCallback(async (lat: number, lng: number) => {
+  /* ---------- 点击地图任意位置 → 探索该地点 ----------
+   * presetName: 若传入（如搜索选中"黄山"），直接用它作标题，不再反查行政区；
+   *             为空时才回退到 reverseGeocode。 */
+  const exploreLocation = useCallback(async (lat: number, lng: number, presetName?: string) => {
     setShowMapHint(false);
     setCenter([lat, lng]);
     setGeoInfo(null);
     Notification.info('正在探索这个地点…');
-    const name = await reverseGeocode(lat, lng);
-    setLocationName(name);
+    if (presetName) {
+      setLocationName(presetName);
+    } else {
+      const name = await reverseGeocode(lat, lng);
+      setLocationName(name);
+    }
     loadSpecies(lat, lng, filter);
     getGeoInfo(lat, lng).then(setGeoInfo);
   }, [filter, loadSpecies]);
+
+  /* ---------- 搜索框选中一个地点 ---------- */
+  const onSearchSelect = useCallback((p: PlaceResult) => {
+    // 自然地物（山川湖泊景点）→ 用其本名作标题，避免被套进行政区划；
+    // 普通地址 → 传入较完整的名称，同样直接展示搜索到的地名。
+    const title = p.isNatural ? p.name : (p.fullName || p.name);
+    exploreLocation(p.lat, p.lng, title);
+  }, [exploreLocation]);
 
   /* ---------- 切换分类 ---------- */
   const changeFilter = useCallback((f: string) => {
@@ -250,7 +264,7 @@ export default function App() {
       </header>
 
       {/* 地点搜索框 */}
-      <SearchBar onSelect={(lat, lng) => exploreLocation(lat, lng)} />
+      <SearchBar onSelect={onSearchSelect} />
 
       {/* 分类过滤 */}
       <div className="filter-bar">
