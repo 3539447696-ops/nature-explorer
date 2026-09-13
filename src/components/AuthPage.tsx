@@ -82,6 +82,13 @@ export function AuthPage({ onSkip }: { onSkip: () => void }) {
               {error && <div className="auth-error">{error}</div>}
               {msg && <div className="auth-msg">{msg}</div>}
 
+              {/* 网络/云端服务不可达时，额外给出醒目的“先逛逛”入口，避免用户卡在这个页面 */}
+              {error.includes('云端服务暂时连接不上') && (
+                <Button block size="large" onClick={onSkip} style={{ marginBottom: 10 }}>
+                  🌿 先逛逛，暂不登录
+                </Button>
+              )}
+
               <Button type="primary" block size="large" loading={loading} onClick={submit}>
                 {mode === 'login' ? '登录' : '注册'}
               </Button>

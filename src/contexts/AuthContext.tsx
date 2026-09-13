@@ -99,5 +99,9 @@ function translateAuthError(msg: string): string {
   if (m.includes('unable to validate email')) return '邮箱格式不正确';
   if (m.includes('email not confirmed')) return '邮箱尚未验证，请查收确认邮件';
   if (m.includes('provider is not enabled')) return '该第三方登录未在 Supabase 中启用';
+  // 网络/服务不可达（常见于 Supabase 免费项目休眠、或断网）
+  if (m.includes('failed to fetch') || m.includes('networkerror') || m.includes('network request failed') || m.includes('load failed')) {
+    return '云端服务暂时连接不上，可能正在启动中（请等 1-2 分钟后重试）。你也可以先点下方「先逛逛，暂不登录」继续使用～';
+  }
   return msg;
 }
