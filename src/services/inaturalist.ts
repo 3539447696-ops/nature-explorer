@@ -87,15 +87,23 @@ export async function fetchNearbySpecies(
   let current = radiusKm;
   let result = await queryNearbySpecies(lat, lng, current, iconicTaxon);
 
-  // 数据太稀疏 → 沿升档序列逐级扩大，最多尝试到 100km 封顶
-  while (result.source === 'inat' && result.data.length < MIN_ACCEPTABLE_SPECIES) {
+  // 数据不足（包括"完全为空" inat-empty）→ 沿升档序列逐级扩大，最多尝试到 100km 封顶。
+  // 注意：不能只判断 source === 'inat'——国内几乎任何地方3km内都至少有麻雀/蒲公英这类
+  // 广布种观测记录，很少完全为空；但国外人烟稀少地区（比如西伯利亚荒野）经常是
+  // "inat-empty"（一条记录都没有），如果这里漏判，会导致完全跳过扩大范围直接放弃。
+  while (
+    (result.source === 'inat' || result.source === 'inat-empty') &&
+    result.data.length < MIN_ACCEPTABLE_SPECIES
+  ) {
     const next = getNextRadius(current);
     if (next == null) break;
     console.info(`[iNaturalist] ${current}km 内仅 ${result.data.length} 种，自动扩大到 ${next}km 重试`);
     const expanded = await queryNearbySpecies(lat, lng, next, iconicTaxon);
     current = next;
-    if (expanded.data.length > result.data.length) result = expanded;
-    else break; // 扩大后也没变多，说明这片区域本身数据就是这么稀疏，停止继续扩大
+    // 用 >= 而不是 >：即使两次都是 0 条，也要继续采用新结果、继续往更大范围尝试，
+    // 而不是在第一次遇到"扩大后还是空"时就放弃——偏远地区可能需要扩到很大范围才有数据。
+    if (expanded.data.length >= result.data.length) result = expanded;
+    else break;
   }
   return { ...result, usedRadiusKm: current };
 }

@@ -158,7 +158,17 @@ export default function App() {
     if (result.source === 'fallback') {
       Notification.info({ message: '未能连接实时数据库', description: '已展示离线示例物种' });
     } else if (data.length === 0) {
-      Notification.info('这附近暂无记录，换个位置试试～');
+      // 完全没有数据：如果已经扩大到 100km 封顶还是空的，说明这片区域公民科学观测覆盖确实
+      // 很稀薄（常见于国外偏远无人区），要明确告知"已经很努力找过了"，而不是含糊地让用户
+      // 以为系统压根没试——这也是当年"西伯利亚查不到"这个 bug 暴露出来的体验缺口。
+      if (result.usedRadiusKm && result.usedRadiusKm >= 100) {
+        Notification.info({
+          message: '这片区域观测数据非常稀少',
+          description: `已尝试扩大搜索范围到 ${result.usedRadiusKm}km，仍未找到公开观测记录，换个位置试试～`,
+        });
+      } else {
+        Notification.info('这附近暂无记录，换个位置试试～');
+      }
     } else if (result.usedRadiusKm && result.usedRadiusKm > baseRadius) {
       // 触发了半径智能降级：告知用户数据来自更大范围，避免"这也算附近？"的困惑
       Notification.info(`这附近记录较少，已自动扩大搜索范围到 ${result.usedRadiusKm}km 🔍`);
@@ -491,7 +501,11 @@ export default function App() {
           {loadingSpecies ? (
             Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton-card" />)
           ) : species.length === 0 ? (
-            <div className="tray-empty">这附近暂时没有找到记录，试着移动地图或切换分类～</div>
+            <div className="tray-empty">
+              {rangeInfo && rangeInfo.radiusKm >= 100
+                ? `已尝试扩大搜索范围到 ${rangeInfo.radiusKm}km，这里的公开观测数据覆盖不足，换个地方试试～`
+                : '这附近暂时没有找到记录，试着移动地图或切换分类～'}
+            </div>
           ) : (
             <>
               {displaySpecies.map((s) => (
