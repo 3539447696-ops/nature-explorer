@@ -327,6 +327,43 @@ body {
 .poster-footer-logo { font-size: 16px; font-weight: 900; color: var(--animal-primary); }
 .poster-footer-sub { font-size: 10px; color: var(--animal-text-secondary); letter-spacing: 0.5px; }
 
+/* ---------- 本次收获达到阈值 → 主动引导分享战绩提示条 ---------- */
+.collect-share-hint {
+  position: fixed; left: 16px; right: 16px; bottom: 96px; z-index: 970;
+  background: linear-gradient(135deg, #fff9e6, #fdf3d9);
+  border: 2px solid #f7cd67; border-radius: 20px; padding: 12px 14px;
+  box-shadow: 0 8px 24px rgba(61, 52, 40, 0.2); cursor: pointer;
+  display: flex; flex-direction: column; gap: 8px;
+  animation: shareHintPop 0.4s var(--animal-ease);
+}
+.collect-share-hint-text { font-size: 13px; font-weight: 700; color: #725d42; line-height: 1.4; }
+.collect-share-hint-actions { display: flex; align-items: center; gap: 8px; }
+.collect-share-hint-btn {
+  flex: 1; padding: 8px; border-radius: 14px; border: none; cursor: pointer;
+  background: var(--animal-primary); color: #fff; font-size: 12px; font-weight: 800; font-family: inherit;
+}
+.collect-share-hint-close {
+  width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer;
+  background: rgba(255, 255, 255, 0.6); color: #9f927d; font-size: 13px; font-family: inherit;
+}
+@keyframes shareHintPop { 0%{transform:scale(0.9) translateY(10px);opacity:0} 100%{transform:scale(1) translateY(0);opacity:1} }
+
+/* ---------- 图鉴收获战绩分享海报（网格展示，成就感风格） ---------- */
+.collection-poster {
+  width: 100%; padding: 24px 20px; background: linear-gradient(180deg, #fdf9ee 0%, #f8f4e6 100%);
+  font-family: var(--animal-font);
+}
+.collection-poster-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+.collection-poster-cell { position: relative; text-align: center; }
+.collection-poster-photo { width: 100%; aspect-ratio: 1; border-radius: 12px; object-fit: cover; background: var(--animal-bg-content); display: block; }
+.collection-poster-photo-fallback { width: 100%; aspect-ratio: 1; border-radius: 12px; background: var(--animal-bg-content); display: flex; align-items: center; justify-content: center; font-size: 26px; }
+.collection-poster-name { font-size: 11px; font-weight: 700; color: var(--animal-text-body); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.collection-poster-rarity {
+  position: absolute; top: 4px; left: 4px; z-index: 2; font-size: 10px;
+  width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
 /* ---------- 首次使用新手任务引导 ---------- */
 .onboarding-guide {
   position: fixed; top: 168px; right: 12px; z-index: 930;

@@ -10,6 +10,7 @@ import { SpeciesDetailModal } from './components/SpeciesDetailModal';
 import { CollectionDrawer } from './components/CollectionDrawer';
 import { AIDrawer } from './components/AIDrawer';
 import { OnboardingGuide } from './components/OnboardingGuide';
+import { ShareCollectionModal } from './components/ShareCollectionModal';
 import { UserDrawer } from './components/UserDrawer';
 import { CommunityDrawer } from './components/CommunityDrawer';
 import { SharePanel } from './components/SharePanel';
@@ -80,6 +81,13 @@ export default function App() {
   const [hasExploredManually, setHasExploredManually] = useState(false);
   const [hasViewedDetail, setHasViewedDetail] = useState(false);
   const onboardingAllDone = hasExploredManually && hasViewedDetail && collection.length > 0;
+
+  // 图鉴分享：追踪"本次探索会话"新收集到的物种，累积到阈值主动引导分享战绩
+  const SESSION_SHARE_THRESHOLD = 3;
+  const [sessionCollected, setSessionCollected] = useState<Species[]>([]);
+  const [showShareHint, setShowShareHint] = useState(false);
+  const [hintDismissed, setHintDismissed] = useState(false);
+  const [shareCollectionOpen, setShareCollectionOpen] = useState(false);
 
   const userId = user?.id ?? null;
 
@@ -200,6 +208,10 @@ export default function App() {
   const exploreLocation = useCallback(async (lat: number, lng: number, presetName?: string) => {
     setShowMapHint(false);
     setHasExploredManually(true); // 新手任务①：主动探索过一个地点
+    // 探索新地点 = 开始新的一次"出行会话"，重置本次收获追踪
+    setSessionCollected([]);
+    setShowShareHint(false);
+    setHintDismissed(false);
     setCenter([lat, lng]);
     setGeoInfo(null);
     Notification.info('正在探索这个地点…');
@@ -234,6 +246,9 @@ export default function App() {
   const handleExplorePlanDestination = useCallback((plan: TravelPlan) => {
     setAiOpen(false);
     setShowMapHint(false);
+    setSessionCollected([]);
+    setShowShareHint(false);
+    setHintDismissed(false);
     setCenter([plan.lat, plan.lng]);
     setLocationName(plan.destination);
     setFilter('all');
@@ -287,9 +302,15 @@ export default function App() {
         } else {
           Notification.success(`🎉 「${s.cn_name}」已收入图鉴！`);
         }
+        // 追踪本次会话新收获，累积到阈值主动引导分享战绩（这才是真正适合发社交平台的内容）
+        setSessionCollected((prev) => {
+          const next = [...prev, s];
+          if (next.length >= SESSION_SHARE_THRESHOLD && !hintDismissed) setShowShareHint(true);
+          return next;
+        });
       }
     }
-  }, [userId, locationName]);
+  }, [userId, locationName, hintDismissed]);
 
   /* ---------- 从详情问 AI ---------- */
   const askAI = useCallback((s: Species) => {
@@ -409,6 +430,24 @@ export default function App() {
         />
       )}
 
+      {/* 本次收获达到阈值 → 主动引导分享战绩（这才是真正适合发朋友圈的内容） */}
+      {showShareHint && (
+        <div className="collect-share-hint" onClick={() => setShareCollectionOpen(true)}>
+          <span className="collect-share-hint-text">🎉 本次已发现 {sessionCollected.length} 种生物！记录下这次的收获吧</span>
+          <div className="collect-share-hint-actions">
+            <button className="collect-share-hint-btn" onClick={(e) => { e.stopPropagation(); setShareCollectionOpen(true); }}>
+              📤 生成分享图
+            </button>
+            <button
+              className="collect-share-hint-close"
+              onClick={(e) => { e.stopPropagation(); setShowShareHint(false); setHintDismissed(true); }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 底部物种托盘 */}
       <div className={`tray ${trayOpen ? 'open' : ''}`}>
         <div className="tray-handle" onClick={() => setTrayOpen((v) => !v)} />
@@ -520,6 +559,12 @@ export default function App() {
         lat={center?.[0] ?? null}
         lng={center?.[1] ?? null}
         onPosted={onPosted}
+      />
+      <ShareCollectionModal
+        species={sessionCollected}
+        location={locationName}
+        open={shareCollectionOpen}
+        onClose={() => setShareCollectionOpen(false)}
       />
     </div>
   );
