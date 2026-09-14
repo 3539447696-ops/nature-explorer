@@ -1,8 +1,29 @@
 import { useRef, useState } from 'react';
 import { Modal, Button } from 'animal-island-ui';
-import type { TravelPlan } from '../types';
+import type { TravelPlan, Species } from '../types';
 import { getTaxonMeta } from '../constants';
 import { captureAndDownload } from '../services/shareImage';
+
+/** 单个物种展示行：配图 + 名字/观测次数 + 观察要点（图文并排，方便朋友一眼认出长什么样） */
+function PosterSpeciesRow({ s }: { s: Species }) {
+  const meta = getTaxonMeta(s.taxon);
+  return (
+    <div className="poster-species-row">
+      {s.photo ? (
+        <img className="poster-species-photo" src={s.photo} alt={s.cn_name} crossOrigin="anonymous" />
+      ) : (
+        <div className="poster-species-photo-fallback">{meta.icon}</div>
+      )}
+      <div className="poster-species-info">
+        <div className="poster-species-name">
+          <span className="poster-species-icon">{meta.icon}</span>
+          {s.cn_name}{s.count ? ` · ${s.count}次` : ''}
+        </div>
+        {s.observeTip && <div className="poster-species-tip">💡 {s.observeTip}</div>}
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   plan: TravelPlan | null;
@@ -59,11 +80,7 @@ export function ShareTravelPlanModal({ plan, open, onClose }: Props) {
                     {band.label} ({band.minElevation}-{band.maxElevation >= 9999 ? '∞' : band.maxElevation}m)
                   </div>
                   {band.species.slice(0, 3).map((s) => (
-                    <div key={s.id} className="poster-species-row">
-                      <span className="poster-species-icon">{getTaxonMeta(s.taxon).icon}</span>
-                      <span className="poster-species-name">{s.cn_name}</span>
-                      {s.observeTip && <div className="poster-species-tip">💡 {s.observeTip}</div>}
-                    </div>
+                    <PosterSpeciesRow key={s.id} s={s} />
                   ))}
                 </div>
               ))}
@@ -71,11 +88,7 @@ export function ShareTravelPlanModal({ plan, open, onClose }: Props) {
           ) : (
             <div className="poster-species-list">
               {speciesToShow.map((s) => (
-                <div key={s.id} className="poster-species-row">
-                  <span className="poster-species-icon">{getTaxonMeta(s.taxon).icon}</span>
-                  <span className="poster-species-name">{s.cn_name} · {s.count || 0}次</span>
-                  {s.observeTip && <div className="poster-species-tip">💡 {s.observeTip}</div>}
-                </div>
+                <PosterSpeciesRow key={s.id} s={s} />
               ))}
             </div>
           )}
