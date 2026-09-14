@@ -26,6 +26,40 @@ export function getTaxonMeta(taxon: string): TaxonMeta {
   return TAXON_CONFIG[taxon] || { icon: '🌿', cn: '生物', color: 'default', markerColor: '#9f927d' };
 }
 
+/* ---------- 图鉴收集游戏化：稀有度分级 ---------- */
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic';
+
+export const RARITY_CONFIG: Record<Rarity, { label: string; icon: string; color: string }> = {
+  common: { label: '普通', icon: '⚪', color: '#9f927d' },
+  uncommon: { label: '少见', icon: '🟢', color: '#6fba2c' },
+  rare: { label: '稀有', icon: '🔵', color: '#5b9bd4' },
+  epic: { label: '史诗', icon: '🟣', color: '#b77dee' },
+};
+
+/**
+ * 按"当次结果集里观测次数的相对分位"给每个物种分配稀有度。
+ * 用相对排名而不是绝对次数阈值，是因为不同地区的观测数据密度差异很大——
+ * 同一个绝对次数，在数据丰富的地区可能很常见，在数据稀疏的地区却已经算稀有了。
+ * 观测次数越少（在本次结果集里排名越靠后），稀有度越高。
+ */
+export function assignRarity(species: Species[]): Species[] {
+  if (species.length === 0) return species;
+  const sorted = [...species].sort((a, b) => (a.count || 0) - (b.count || 0));
+  const rankMap = new Map<string, number>();
+  const denom = Math.max(sorted.length - 1, 1);
+  sorted.forEach((s, i) => rankMap.set(s.id, i / denom)); // 0（观测最少）~1（观测最多）
+
+  return species.map((s) => {
+    const percentile = rankMap.get(s.id) ?? 0.5;
+    let rarity: Rarity;
+    if (percentile >= 0.95) rarity = 'common';       // 观测次数最多的一批 → 普通
+    else if (percentile >= 0.8) rarity = 'uncommon';
+    else if (percentile >= 0.5) rarity = 'rare';
+    else rarity = 'epic';                             // 观测次数最少的一半 → 史诗
+    return { ...s, rarity };
+  });
+}
+
 /** 按分类统计数量（用于分类过滤器 Tag 加实时数量角标，如"🐦鸟类 23"） */
 export function countByTaxon(species: Species[]): Record<string, number> {
   const counts: Record<string, number> = {};

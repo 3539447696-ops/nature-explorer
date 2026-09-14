@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card, Tag } from 'animal-island-ui';
 import type { Species } from '../types';
-import { getTaxonMeta } from '../constants';
+import { getTaxonMeta, RARITY_CONFIG } from '../constants';
 
 interface SpeciesCardProps {
   species: Species;
@@ -12,10 +12,12 @@ interface SpeciesCardProps {
 export function SpeciesCard({ species, collected, onClick }: SpeciesCardProps) {
   const meta = getTaxonMeta(species.taxon);
   const [imgError, setImgError] = useState(false);
+  const rarity = species.rarity && species.rarity !== 'common' ? RARITY_CONFIG[species.rarity] : null;
 
   return (
-    <div className="species-card" onClick={onClick}>
+    <div className={`species-card ${species.rarity ? `rarity-${species.rarity}` : ''}`} onClick={onClick}>
       <Card hoverable color="default" style={{ padding: 10 }}>
+        {rarity && <div className="card-rarity-badge" style={{ background: rarity.color }}>{rarity.icon} {rarity.label}</div>}
         {species.photo && !imgError ? (
           <img className="thumb" src={species.photo} alt={species.cn_name} loading="lazy" onError={() => setImgError(true)} />
         ) : (

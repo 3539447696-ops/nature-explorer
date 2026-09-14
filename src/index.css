@@ -439,6 +439,19 @@ body {
   background: var(--animal-warning); color: #fff; font-size: 14px; font-weight: 800;
   display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-soft);
 }
+
+/* 稀有度：徽章 + 图片光效边框，稀有度越高视觉越突出 */
+.card-rarity-badge {
+  position: absolute; top: 16px; left: 16px; z-index: 2;
+  font-size: 10px; font-weight: 800; color: #fff; padding: 3px 8px; border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+.species-card.rarity-rare .thumb, .species-card.rarity-rare .thumb-fallback { box-shadow: 0 0 0 3px #5b9bd4; }
+.species-card.rarity-epic .thumb, .species-card.rarity-epic .thumb-fallback {
+  box-shadow: 0 0 0 3px #b77dee, 0 0 12px rgba(183,125,238,0.6);
+  animation: rarityGlow 2s ease-in-out infinite;
+}
+@keyframes rarityGlow { 0%,100%{box-shadow:0 0 0 3px #b77dee, 0 0 8px rgba(183,125,238,.5)} 50%{box-shadow:0 0 0 3px #b77dee, 0 0 18px rgba(183,125,238,.85)} }
 .skeleton-card {
   flex-shrink: 0; width: 156px; height: 158px; border-radius: 18px;
   background: linear-gradient(90deg, #efe9db 25%, #f6f1e4 50%, #efe9db 75%);
@@ -475,7 +488,13 @@ body {
 .detail-actions > * { flex: 1; min-width: 120px; }
 
 /* ---------- 图鉴收藏册 ---------- */
-.collection-stats { text-align: center; font-size: 13px; color: var(--animal-text-secondary); margin-bottom: 14px; }
+.collection-stats { text-align: center; margin-bottom: 14px; }
+.collector-title { font-size: 17px; font-weight: 800; color: var(--animal-text); margin-bottom: 4px; }
+.collection-count { font-size: 12px; color: var(--animal-text-secondary); margin-bottom: 8px; }
+.collector-progress-wrap { max-width: 240px; margin: 0 auto; }
+.collector-progress-bar { height: 8px; border-radius: 5px; background: var(--animal-bg-content); overflow: hidden; }
+.collector-progress-fill { height: 100%; background: var(--animal-primary); border-radius: 5px; transition: width 0.4s var(--animal-ease); }
+.collector-progress-text { font-size: 11px; color: var(--animal-text-secondary); margin-top: 4px; }
 .collection-filters { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 16px; scrollbar-width: none; padding-bottom: 2px; }
 .collection-filters::-webkit-scrollbar { display: none; }
 .collection-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -484,6 +503,13 @@ body {
 .stamp-slot.empty { background: repeating-linear-gradient(45deg, #f0ece0, #f0ece0 8px, #eae5d6 8px, #eae5d6 16px); border: 2px dashed #d8d2c4; }
 .stamp-slot.empty .lock { font-size: 22px; opacity: .35; }
 .stamp-slot.filled { background: #fff; box-shadow: var(--shadow-soft); border: 2px solid var(--animal-warning); }
+.stamp-slot.rarity-rare { border-color: #5b9bd4; box-shadow: 0 0 10px rgba(91,155,212,0.5); }
+.stamp-slot.rarity-epic { border-color: #b77dee; box-shadow: 0 0 14px rgba(183,125,238,0.6); animation: rarityGlow 2s ease-in-out infinite; }
+.stamp-rarity-badge {
+  position: absolute; top: 4px; left: 4px; z-index: 2; font-size: 10px;
+  width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
 .stamp-slot.filled img { width: 100%; height: 68%; object-fit: cover; }
 .stamp-slot .stamp-fallback { height: 68%; display: flex; align-items: center; justify-content: center; font-size: 34px; width: 100%; }
 .stamp-slot .stamp-name { font-size: 10px; font-weight: 700; padding: 4px; text-align: center; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--animal-text); }

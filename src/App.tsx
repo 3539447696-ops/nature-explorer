@@ -19,7 +19,7 @@ import {
 } from './services/inaturalist';
 import { CollectionService } from './services/collection';
 import { getGeoInfo, fetchElevationsBatch, isMountainousArea, getElevationBandLabel, type GeoInfo } from './services/geoinfo';
-import { FILTERS, DEFAULT_LATLNG, getTaxonMeta, countByTaxon, pickBalancedSample } from './constants';
+import { FILTERS, DEFAULT_LATLNG, getTaxonMeta, countByTaxon, pickBalancedSample, assignRarity } from './constants';
 import type { Species, TravelPlan } from './types';
 import { PLAN_RADIUS_KM } from './services/travelPlan';
 
@@ -144,7 +144,7 @@ export default function App() {
       });
     }
 
-    setSpecies(data);
+    setSpecies(assignRarity(data));
     setLoadingSpecies(false);
     setRangeInfo({ radiusKm: result.usedRadiusKm ?? baseRadius, isMountainous: mountainous });
     if (result.source === 'fallback') {
@@ -244,7 +244,7 @@ export default function App() {
     const planSpecies = plan.isMountainous
       ? plan.elevationBands.flatMap((b) => b.species)
       : plan.speciesHighlights;
-    setSpecies(planSpecies);
+    setSpecies(assignRarity(planSpecies));
     setRangeInfo({ radiusKm: PLAN_RADIUS_KM, isMountainous: plan.isMountainous });
 
     // 气候/海拔信息攻略里也已经有了，直接用现成数据组装，不必再查一次
@@ -277,8 +277,16 @@ export default function App() {
       const ok = await CollectionService.add({ ...s, location: locationName }, userId);
       if (ok) {
         setCollection((prev) => [{ ...s, location: locationName, collectedAt: Date.now() }, ...prev]);
-        celebrate(getTaxonMeta(s.taxon).icon);
-        Notification.success(`🎉 「${s.cn_name}」已收入图鉴！`);
+        // 稀有度越高，收集反馈越隆重——制造"抽到好东西"的惊喜感
+        const rarity = s.rarity || 'common';
+        celebrate(getTaxonMeta(s.taxon).icon, rarity);
+        if (rarity === 'epic') {
+          Notification.success({ message: `💎 史诗发现！「${s.cn_name}」`, description: '这是这片区域很少被记录到的物种，很难得！' });
+        } else if (rarity === 'rare') {
+          Notification.success({ message: `🔵 稀有收获！「${s.cn_name}」`, description: '已收入图鉴，这个不常见哦～' });
+        } else {
+          Notification.success(`🎉 「${s.cn_name}」已收入图鉴！`);
+        }
       }
     }
   }, [userId, locationName]);
@@ -517,12 +525,23 @@ export default function App() {
   );
 }
 
-/* 集章庆祝动画 */
-function celebrate(icon: string) {
+/* 集章庆祝动画。稀有度越高，动画越隆重（更大、停留更久、带光效），
+ * 制造"这次抽到好东西了"的惊喜感，强化收集的游戏感。 */
+function celebrate(icon: string, rarity: 'common' | 'uncommon' | 'rare' | 'epic' = 'common') {
+  const isEpic = rarity === 'epic';
+  const isRare = rarity === 'rare';
+  const fontSize = isEpic ? 160 : isRare ? 136 : 120;
+  const duration = isEpic ? 1.3 : isRare ? 1.0 : 0.8;
+  const glow = isEpic
+    ? 'filter:drop-shadow(0 0 24px #b77dee) drop-shadow(0 0 44px #b77dee);'
+    : isRare
+      ? 'filter:drop-shadow(0 0 16px #5b9bd4);'
+      : '';
+
   const el = document.createElement('div');
   el.style.cssText =
     'position:fixed;inset:0;z-index:4000;pointer-events:none;display:flex;align-items:center;justify-content:center';
-  el.innerHTML = `<div style="font-size:120px;animation:stampPop .8s ease forwards">${icon}</div>`;
+  el.innerHTML = `<div style="font-size:${fontSize}px;${glow}animation:stampPop ${duration}s ease forwards">${icon}</div>`;
   if (!document.getElementById('stamp-pop-style')) {
     const style = document.createElement('style');
     style.id = 'stamp-pop-style';
@@ -531,5 +550,5 @@ function celebrate(icon: string) {
     document.head.appendChild(style);
   }
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 800);
+  setTimeout(() => el.remove(), duration * 1000);
 }

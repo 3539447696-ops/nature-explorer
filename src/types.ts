@@ -59,6 +59,8 @@ export interface Species {
   elevationBand?: string;    // 归类后的层级标签，如"🌳半山(300-800m)"（山地场景展示用）
   // ---- 旅行攻略专属：观察要点（AI针对该物种生成的一句实用提示） ----
   observeTip?: string;
+  // ---- 图鉴收集游戏化：稀有度（按当次结果集里观测次数的相对分位计算） ----
+  rarity?: 'common' | 'uncommon' | 'rare' | 'epic';
 }
 
 // AI 对话消息

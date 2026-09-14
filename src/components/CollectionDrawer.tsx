@@ -1,13 +1,29 @@
 import { useState } from 'react';
 import { Drawer, Title, Tag } from 'animal-island-ui';
 import type { Species } from '../types';
-import { getTaxonMeta, FILTERS } from '../constants';
+import { getTaxonMeta, FILTERS, RARITY_CONFIG } from '../constants';
 
 interface Props {
   open: boolean;
   collection: Species[];
   onClose: () => void;
   onSelect: (s: Species) => void;
+}
+
+// 收藏家称号阶梯：数量越多，称号越高，配一个"距下一级还差几个"的进度条
+const COLLECTOR_TITLES = [
+  { threshold: 0, title: '🌱 自然新手', next: 5 },
+  { threshold: 5, title: '🔍 观察员', next: 15 },
+  { threshold: 15, title: '🔭 资深观察员', next: 30 },
+  { threshold: 30, title: '📚 自然学家', next: 60 },
+  { threshold: 60, title: '🏆 博物大师', next: null as number | null },
+];
+function getCollectorTitle(count: number) {
+  let current = COLLECTOR_TITLES[0];
+  for (const t of COLLECTOR_TITLES) {
+    if (count >= t.threshold) current = t;
+  }
+  return current;
 }
 
 export function CollectionDrawer({ open, collection, onClose, onSelect }: Props) {
@@ -18,10 +34,25 @@ export function CollectionDrawer({ open, collection, onClose, onSelect }: Props)
 
   // 补充空槽营造“未集满”的仪式感
   const emptySlots = Math.max(3, (3 - (sorted.length % 3)) % 3 + 3);
+  const titleInfo = getCollectorTitle(collection.length);
 
   return (
     <Drawer open={open} onClose={onClose} placement="right" width={420} title="📖 我的自然图鉴">
-      <div className="collection-stats">已收集 {collection.length} 个物种</div>
+      <div className="collection-stats">
+        <div className="collector-title">{titleInfo.title}</div>
+        <div className="collection-count">已收集 {collection.length} 个物种</div>
+        {titleInfo.next != null && (
+          <div className="collector-progress-wrap">
+            <div className="collector-progress-bar">
+              <div
+                className="collector-progress-fill"
+                style={{ width: `${Math.min(100, (collection.length / titleInfo.next) * 100)}%` }}
+              />
+            </div>
+            <div className="collector-progress-text">再收集 {titleInfo.next - collection.length} 个解锁下一称号</div>
+          </div>
+        )}
+      </div>
 
       <div className="collection-filters">
         {FILTERS.map((f) => (
@@ -60,8 +91,10 @@ export function CollectionDrawer({ open, collection, onClose, onSelect }: Props)
 function StampSlot({ species, onClick }: { species: Species; onClick: () => void }) {
   const meta = getTaxonMeta(species.taxon);
   const [imgError, setImgError] = useState(false);
+  const rarity = species.rarity && species.rarity !== 'common' ? RARITY_CONFIG[species.rarity] : null;
   return (
-    <div className="stamp-slot filled" onClick={onClick}>
+    <div className={`stamp-slot filled ${species.rarity ? `rarity-${species.rarity}` : ''}`} onClick={onClick}>
+      {rarity && <div className="stamp-rarity-badge" style={{ background: rarity.color }}>{rarity.icon}</div>}
       {species.photo && !imgError ? (
         <img src={species.photo} alt={species.cn_name} onError={() => setImgError(true)} />
       ) : (
