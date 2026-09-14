@@ -16,6 +16,24 @@ interface Props {
  * 不是"这里有什么"的知识科普，而是"我今天发现了什么"的个人成就展示，
  * 天然具有社交货币属性（展示见识、生活情趣、去了哪里玩）。
  */
+/** 单个物种格子：图片加载失败时兜底显示分类图标，避免出现空白格 */
+function PosterCell({ s }: { s: Species }) {
+  const meta = getTaxonMeta(s.taxon);
+  const rarity = s.rarity && s.rarity !== 'common' ? RARITY_CONFIG[s.rarity] : null;
+  const [imgError, setImgError] = useState(false);
+  return (
+    <div className="collection-poster-cell">
+      {rarity && <div className="collection-poster-rarity" style={{ background: rarity.color }}>{rarity.icon}</div>}
+      {s.photo && !imgError ? (
+        <img className="collection-poster-photo" src={s.photo} alt={s.cn_name} onError={() => setImgError(true)} />
+      ) : (
+        <div className="collection-poster-photo-fallback">{meta.icon}</div>
+      )}
+      <div className="collection-poster-name">{s.cn_name}</div>
+    </div>
+  );
+}
+
 export function ShareCollectionModal({ species, location, open, onClose }: Props) {
   const posterRef = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
@@ -45,23 +63,9 @@ export function ShareCollectionModal({ species, location, open, onClose }: Props
           </div>
 
           <div className="collection-poster-grid">
-            {species.map((s) => {
-              const meta = getTaxonMeta(s.taxon);
-              const rarity = s.rarity && s.rarity !== 'common' ? RARITY_CONFIG[s.rarity] : null;
-              return (
-                <div key={s.id} className="collection-poster-cell">
-                  {rarity && (
-                    <div className="collection-poster-rarity" style={{ background: rarity.color }}>{rarity.icon}</div>
-                  )}
-                  {s.photo ? (
-                    <img className="collection-poster-photo" src={s.photo} alt={s.cn_name} crossOrigin="anonymous" />
-                  ) : (
-                    <div className="collection-poster-photo-fallback">{meta.icon}</div>
-                  )}
-                  <div className="collection-poster-name">{s.cn_name}</div>
-                </div>
-              );
-            })}
+            {species.map((s) => (
+              <PosterCell key={s.id} s={s} />
+            ))}
           </div>
 
           <div className="poster-footer">

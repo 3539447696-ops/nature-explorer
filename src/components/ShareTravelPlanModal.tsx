@@ -7,10 +7,11 @@ import { captureAndDownload } from '../services/shareImage';
 /** 单个物种展示行：配图 + 名字/观测次数 + 观察要点（图文并排，方便朋友一眼认出长什么样） */
 function PosterSpeciesRow({ s }: { s: Species }) {
   const meta = getTaxonMeta(s.taxon);
+  const [imgError, setImgError] = useState(false);
   return (
     <div className="poster-species-row">
-      {s.photo ? (
-        <img className="poster-species-photo" src={s.photo} alt={s.cn_name} crossOrigin="anonymous" />
+      {s.photo && !imgError ? (
+        <img className="poster-species-photo" src={s.photo} alt={s.cn_name} onError={() => setImgError(true)} />
       ) : (
         <div className="poster-species-photo-fallback">{meta.icon}</div>
       )}
