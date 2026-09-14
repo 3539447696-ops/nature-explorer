@@ -197,6 +197,19 @@ body {
 }
 .filter-bar::-webkit-scrollbar { display: none; }
 
+/* OSM 底图归属小字：境外区域切到 OSM 时才会出现，抬高层级+上移，避免被底部托盘挡住 */
+.leaflet-control-attribution {
+  z-index: 955 !important;
+  bottom: 60px !important;
+  right: 6px !important;
+  position: fixed !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  font-size: 10px !important;
+  padding: 1px 6px !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+
 /* ---------- 底部物种托盘 ---------- */
 .tray {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 950;

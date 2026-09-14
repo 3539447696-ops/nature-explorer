@@ -19,7 +19,9 @@ const PI = 3.14159265358979324;
 const A = 6378245.0;
 const EE = 0.00669342162296594323;
 
-function outOfChina(lat: number, lng: number): boolean {
+// 导出给 MapView 用：高德地图仅在中国境内有详细路网/地名标注，境外区域几乎空白，
+// 需要据此判断是否要切换到全球覆盖的 OSM 瓦片作为底图。
+export function outOfChina(lat: number, lng: number): boolean {
   return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
 }
 function transformLat(x: number, y: number): number {
