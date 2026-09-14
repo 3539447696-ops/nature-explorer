@@ -246,6 +246,38 @@ body {
 }
 .mode-tab.active { background: var(--animal-primary); color: #fff; border-color: var(--animal-primary); }
 
+/* ---------- AI 向导：内嵌"生成攻略"引导卡片 / 结果卡片（聊天消息流的一部分） ---------- */
+.ai-plan-prompt {
+  background: var(--animal-primary-bg); border: 2px dashed var(--animal-primary);
+  border-radius: 16px; padding: 12px 14px; margin: 8px 0; display: flex;
+  flex-direction: column; gap: 10px; align-self: flex-start; max-width: 88%;
+}
+.plan-prompt-text { font-size: 13px; font-weight: 700; color: var(--animal-text-body); line-height: 1.5; }
+
+.plan-loading-msg { display: flex; align-items: center; gap: 8px; }
+.ai-plan-loading-dots { display: inline-flex; gap: 3px; }
+.ai-plan-loading-dots span {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--animal-primary);
+  animation: aiPlanBlink 1.2s ease-in-out infinite;
+}
+.ai-plan-loading-dots span:nth-child(2) { animation-delay: .2s; }
+.ai-plan-loading-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes aiPlanBlink { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+.ai-plan-result {
+  background: #fff; border: 2px solid var(--animal-border); border-radius: 16px;
+  padding: 14px; margin: 8px 0; display: flex; flex-direction: column; gap: 8px;
+  box-shadow: var(--shadow-soft); max-width: 92%;
+}
+.plan-result-title { font-size: 14px; font-weight: 800; color: var(--animal-text); }
+.plan-result-credibility { font-size: 11px; font-weight: 700; color: var(--animal-primary); }
+.plan-result-narrative { font-size: 13px; line-height: 1.6; color: var(--animal-text-body); margin: 2px 0; }
+.plan-result-bands { display: flex; flex-direction: column; gap: 6px; }
+.plan-result-band { display: flex; flex-direction: column; gap: 4px; }
+.band-label-mini { font-size: 12px; font-weight: 700; color: var(--animal-text-body); }
+.plan-result-species { display: flex; flex-wrap: wrap; gap: 4px; }
+.plan-result-tip { font-size: 12px; color: var(--animal-text-secondary); line-height: 1.5; }
+
 /* ---------- 攻略面板容器 ---------- */
 .travel-plan-panel {
   position: fixed; top: 110px; left: 0; right: 0; bottom: 0; z-index: 900;
