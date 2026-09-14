@@ -4,6 +4,7 @@ import type { ChatMessage, Species, TravelPlan } from '../types';
 import { aiChat, buildSuggestions } from '../services/ai';
 import { generateTravelPlan } from '../services/travelPlan';
 import { getTaxonMeta } from '../constants';
+import { ShareTravelPlanModal } from './ShareTravelPlanModal';
 
 interface Props {
   open: boolean;
@@ -36,6 +37,7 @@ interface DisplayMsg {
  */
 export function AIDrawer({ open, onClose, currentSpecies, location, centerLat, centerLng, onExploreDestination }: Props) {
   const [messages, setMessages] = useState<DisplayMsg[]>([]);
+  const [sharePlan, setSharePlan] = useState<TravelPlan | null>(null);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const historyRef = useRef<ChatMessage[]>([]);
@@ -158,6 +160,7 @@ export function AIDrawer({ open, onClose, currentSpecies, location, centerLat, c
                 key={i}
                 plan={m.planData}
                 onExplore={() => onExploreDestination(m.planData!)}
+                onShare={() => setSharePlan(m.planData!)}
               />
             );
           }
@@ -184,6 +187,8 @@ export function AIDrawer({ open, onClose, currentSpecies, location, centerLat, c
         />
         <Button type="primary" onClick={() => send(input)}>发送</Button>
       </div>
+
+      <ShareTravelPlanModal plan={sharePlan} open={!!sharePlan} onClose={() => setSharePlan(null)} />
     </Drawer>
   );
 }
@@ -211,7 +216,15 @@ function SpeciesTipRow({ s }: { s: Species }) {
 }
 
 /** 内嵌在对话流里的紧凑版攻略结果卡片（不是独立页面，是一条特殊样式的"聊天消息"） */
-function AIPlanResultCard({ plan, onExplore }: { plan: TravelPlan; onExplore: () => void }) {
+function AIPlanResultCard({
+  plan,
+  onExplore,
+  onShare,
+}: {
+  plan: TravelPlan;
+  onExplore: () => void;
+  onShare: () => void;
+}) {
   const speciesToShow = plan.isMountainous
     ? plan.elevationBands.flatMap((b) => b.species.slice(0, 3))
     : plan.speciesHighlights.slice(0, 8);
@@ -254,7 +267,10 @@ function AIPlanResultCard({ plan, onExplore }: { plan: TravelPlan; onExplore: ()
         ))}
       </div>
 
-      <Button size="small" type="primary" block onClick={onExplore}>🔍 开始探索这里</Button>
+      <div className="plan-result-actions">
+        <Button size="small" type="primary" block onClick={onExplore}>🔍 开始探索这里</Button>
+        <Button size="small" block onClick={onShare}>📤 分享</Button>
+      </div>
     </div>
   );
 }
