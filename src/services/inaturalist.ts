@@ -232,6 +232,87 @@ export function isScenicAreaName(name: string | null | undefined): boolean {
   return AMAP_NATURAL_KEYWORDS.some((k) => name.includes(k));
 }
 
+export interface SeasonalResult {
+  species: Species[];
+  totalObservations: number; // 该月份历史真实观测总次数（权威数据，来自 species_counts）
+}
+
+/**
+ * 【AI 攻略核心数据源】按"月份"筛选某坐标周边历史真实观测记录。
+ * 不同于 fetchNearbySpecies（拿"当前"数据），这里用 iNaturalist 的 month 参数
+ * 拿"历史上这个月被真实记录过"的物种——这是攻略"数据可验证"差异化的关键：
+ * 每条推荐都能追溯到真实观测次数，不是 AI 凭空编的。
+ * 复用与 queryNearbySpecies 相同的"双请求"策略（准确计数 + 真实坐标）。
+ */
+export async function fetchSeasonalSpecies(
+  lat: number,
+  lng: number,
+  month: number,
+  radiusKm: number,
+): Promise<SeasonalResult> {
+  const baseParams: Record<string, string> = {
+    lat: lat.toFixed(5),
+    lng: lng.toFixed(5),
+    radius: String(radiusKm),
+    month: String(month),
+    quality_grade: 'research,needs_id',
+    locale: 'zh-CN',
+  };
+
+  const countsParams = new URLSearchParams({ ...baseParams, per_page: '100', order: 'desc', order_by: 'count' });
+  const obsParams = new URLSearchParams({ ...baseParams, per_page: '200', photos: 'true', order: 'desc', order_by: 'votes' });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const countsRes = await fetch(`${INAT_BASE}/observations/species_counts?${countsParams}`, { signal: controller.signal });
+    if (!countsRes.ok) throw new Error(`iNaturalist API ${countsRes.status}`);
+    const countsJson = await countsRes.json();
+    if (!countsJson.results || countsJson.results.length === 0) {
+      clearTimeout(timeout);
+      return { species: [], totalObservations: 0 };
+    }
+
+    const coordMap = new Map<number, { lat: number; lng: number }>();
+    try {
+      const obsRes = await fetch(`${INAT_BASE}/observations?${obsParams}`, { signal: controller.signal });
+      if (obsRes.ok) {
+        const obsJson = await obsRes.json();
+        const obsResults: any[] = obsJson.results || [];
+        for (const obs of obsResults) {
+          const tid = obs.taxon?.id;
+          if (!tid || coordMap.has(tid)) continue;
+          let obsLat: number | null = null;
+          let obsLng: number | null = null;
+          if (obs.geojson && Array.isArray(obs.geojson.coordinates)) {
+            obsLng = Number(obs.geojson.coordinates[0]);
+            obsLat = Number(obs.geojson.coordinates[1]);
+          } else if (typeof obs.location === 'string' && obs.location.includes(',')) {
+            const [la, ln] = obs.location.split(',').map(Number);
+            obsLat = la;
+            obsLng = ln;
+          }
+          if (obsLat != null && obsLng != null && !isNaN(obsLat) && !isNaN(obsLng)) {
+            coordMap.set(tid, { lat: obsLat, lng: obsLng });
+          }
+        }
+      }
+    } catch {
+      // 坐标增强失败，忽略即可
+    }
+    clearTimeout(timeout);
+
+    const species: Species[] = countsJson.results.map((item: any) => normalizeSpeciesCount(item, coordMap));
+    const totalObservations = species.reduce((sum, s) => sum + (s.count || 0), 0);
+    return { species, totalObservations };
+  } catch (err) {
+    clearTimeout(timeout);
+    console.warn('[iNaturalist] 季节性数据请求失败:', (err as Error).message);
+    return { species: [], totalObservations: 0 };
+  }
+}
+
 /** 获取单个物种详情（含维基百科简介、保护状态等） */
 export async function fetchSpeciesDetail(taxonId: number): Promise<Partial<Species> | null> {
   try {

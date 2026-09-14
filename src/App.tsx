@@ -12,14 +12,17 @@ import { AIDrawer } from './components/AIDrawer';
 import { UserDrawer } from './components/UserDrawer';
 import { CommunityDrawer } from './components/CommunityDrawer';
 import { SharePanel } from './components/SharePanel';
+import { TravelPlanForm } from './components/TravelPlanForm';
+import { TravelPlanCard } from './components/TravelPlanCard';
 import {
   fetchNearbySpecies, reverseGeocode, isScenicAreaName, haversineDistanceKm, RADIUS_BY_SCENE,
   type PlaceResult,
 } from './services/inaturalist';
 import { CollectionService } from './services/collection';
 import { getGeoInfo, fetchElevationsBatch, isMountainousArea, getElevationBandLabel, type GeoInfo } from './services/geoinfo';
+import { generateTravelPlan } from './services/travelPlan';
 import { FILTERS, DEFAULT_LATLNG, getTaxonMeta, countByTaxon, pickBalancedSample } from './constants';
-import type { Species } from './types';
+import type { Species, TravelPlan } from './types';
 
 // 底部列表默认精选数量：旅行者需要"快速掌握重点"，不是"看到全部"
 const TOP_N_SPECIES = 12;
@@ -30,6 +33,11 @@ export default function App() {
   // 认证门禁：配置了云端且未登录 → 显示登录页（可跳过）
   const [skippedAuth, setSkippedAuth] = useState(false);
   const showAuth = configured && !user && !skippedAuth;
+
+  // 两阶段用户旅程：制定攻略（行前）/ 探索发现（行中，现有功能）
+  const [mode, setMode] = useState<'explore' | 'plan'>('explore');
+  const [travelPlan, setTravelPlan] = useState<TravelPlan | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
 
   // 地图与数据状态
   const [center, setCenter] = useState<[number, number] | null>(null);
@@ -219,6 +227,30 @@ export default function App() {
     if (center) loadSpecies(center[0], center[1], f, locationName);
   }, [center, loadSpecies, locationName]);
 
+  /* ---------- AI 旅行攻略：生成 / 跳转探索 / 分享 / 重新制定 ---------- */
+  const handleGeneratePlan = useCallback(async (destinationName: string, lat: number, lng: number, month: number) => {
+    setPlanLoading(true);
+    try {
+      const plan = await generateTravelPlan({ destination: destinationName, lat, lng, month });
+      setTravelPlan(plan);
+    } catch (err) {
+      console.error('[TravelPlan] 生成失败:', err);
+      Notification.error('攻略生成失败，请稍后重试');
+    } finally {
+      setPlanLoading(false);
+    }
+  }, []);
+
+  const handleExploreFromPlan = useCallback(() => {
+    if (!travelPlan) return;
+    setMode('explore');
+    exploreLocation(travelPlan.lat, travelPlan.lng, travelPlan.destination);
+  }, [travelPlan, exploreLocation]);
+
+  const handleShareFromPlan = useCallback(() => {
+    Notification.info('攻略分享图功能即将上线，敬请期待～');
+  }, []);
+
   /* ---------- 打开物种详情 ---------- */
   const openDetail = useCallback((s: Species) => {
     setDetailSpecies(s);
@@ -317,92 +349,120 @@ export default function App() {
         </div>
       </header>
 
-      {/* 地点搜索框 */}
-      <SearchBar onSelect={onSearchSelect} />
-
-      {/* 分类过滤（带实时数量角标，方便一眼看出哪类多哪类少） */}
-      <div className="filter-bar">
-        {FILTERS.map((f) => {
-          const count = f.value === 'all' ? species.length : (taxonCounts[f.value] || 0);
-          return (
-            <Tag
-              key={f.value}
-              color={filter === f.value ? 'app-green' : 'default'}
-              variant={filter === f.value ? 'solid' : 'outlined'}
-              onClick={() => changeFilter(f.value)}
-            >
-              {f.label}{count > 0 ? ` ${count}` : ''}
-            </Tag>
-          );
-        })}
+      {/* 两阶段用户旅程：制定攻略 / 探索发现 */}
+      <div className="mode-tabs">
+        <button className={`mode-tab ${mode === 'plan' ? 'active' : ''}`} onClick={() => setMode('plan')}>
+          🗺️ 制定攻略
+        </button>
+        <button className={`mode-tab ${mode === 'explore' ? 'active' : ''}`} onClick={() => setMode('explore')}>
+          🔍 探索发现
+        </button>
       </div>
 
-      {/* 点击地图探索的引导提示 */}
-      {showMapHint && (
-        <div className="map-hint" onClick={() => setShowMapHint(false)}>
-          👆 点击地图上任意位置，探索那里的动植物（比如拉萨、三亚、你的家乡…）
-          <span className="map-hint-close">✕</span>
-        </div>
-      )}
-
-      {/* 底部物种托盘 */}
-      <div className={`tray ${trayOpen ? 'open' : ''}`}>
-        <div className="tray-handle" onClick={() => setTrayOpen((v) => !v)} />
-        <div className="tray-header">
-          <h2 onClick={() => setTrayOpen((v) => !v)}>
-            {loadingSpecies ? '正在探索附近的生物…' : locationName ? `${locationName}附近的生物` : '附近的生物'}
-            {!loadingSpecies && species.length > TOP_N_SPECIES && (
-              <span className="tray-subtitle">
-                {showAllSpecies ? ` · 共 ${species.length} 种` : ` · 精选 ${Math.min(TOP_N_SPECIES, species.length)}/${species.length} 种`}
-              </span>
-            )}
-          </h2>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button className="suggestion-chip" onClick={refreshHere}>🔄 刷新</button>
-            <button className="tray-toggle-btn" onClick={() => setTrayOpen((v) => !v)}>
-              {trayOpen ? '收起 ▾' : '展开 ▴'}
-            </button>
-          </div>
-        </div>
-
-        {/* 地点自然信息 + 当前搜索范围说明（解决"为什么附近有这个物种"的困惑） */}
-        {geoInfo && (
-          <div className="geo-info">
-            <span className="geo-chip">🧭 {geoInfo.latText}, {geoInfo.lngText}</span>
-            {geoInfo.elevation != null && (
-              <span className="geo-chip">⛰️ 海拔 {geoInfo.elevation} m</span>
-            )}
-            <span className="geo-chip">{geoInfo.climateZone}</span>
-            {rangeInfo && (
-              <span className="geo-chip geo-chip-range">
-                🔍 搜索范围 {rangeInfo.radiusKm}km{rangeInfo.isMountainous ? '（按海拔分层）' : ''}
-              </span>
-            )}
-            <div className="geo-hint">🌿 {geoInfo.climateHint}</div>
-            <div className="geo-hint geo-source-hint">
-              📊 以下物种数据来自 iNaturalist 全球公民科学社区的真实观测记录
-            </div>
-          </div>
-        )}
-        <div className="tray-list">
-          {loadingSpecies ? (
-            Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton-card" />)
-          ) : species.length === 0 ? (
-            <div className="tray-empty">这附近暂时没有找到记录，试着移动地图或切换分类～</div>
+      {mode === 'plan' ? (
+        /* ---------- 攻略模式 ---------- */
+        <div className="travel-plan-panel">
+          {travelPlan ? (
+            <TravelPlanCard
+              plan={travelPlan}
+              onExplore={handleExploreFromPlan}
+              onShare={handleShareFromPlan}
+              onReset={() => setTravelPlan(null)}
+            />
           ) : (
-            <>
-              {displaySpecies.map((s) => (
-                <SpeciesCard key={s.id} species={s} collected={collectedIds.has(s.id)} onClick={() => openDetail(s)} />
-              ))}
-              {species.length > TOP_N_SPECIES && (
-                <button className="show-more-btn" onClick={() => setShowAllSpecies((v) => !v)}>
-                  {showAllSpecies ? '▴ 收起，只看精选' : `▾ 查看全部 ${species.length} 种`}
-                </button>
-              )}
-            </>
+            <TravelPlanForm onGenerate={handleGeneratePlan} loading={planLoading} />
           )}
         </div>
-      </div>
+      ) : (
+        <>
+          {/* 地点搜索框 */}
+          <SearchBar onSelect={onSearchSelect} />
+
+          {/* 分类过滤（带实时数量角标，方便一眼看出哪类多哪类少） */}
+          <div className="filter-bar">
+            {FILTERS.map((f) => {
+              const count = f.value === 'all' ? species.length : (taxonCounts[f.value] || 0);
+              return (
+                <Tag
+                  key={f.value}
+                  color={filter === f.value ? 'app-green' : 'default'}
+                  variant={filter === f.value ? 'solid' : 'outlined'}
+                  onClick={() => changeFilter(f.value)}
+                >
+                  {f.label}{count > 0 ? ` ${count}` : ''}
+                </Tag>
+              );
+            })}
+          </div>
+
+          {/* 点击地图探索的引导提示 */}
+          {showMapHint && (
+            <div className="map-hint" onClick={() => setShowMapHint(false)}>
+              👆 点击地图上任意位置，探索那里的动植物（比如拉萨、三亚、你的家乡…）
+              <span className="map-hint-close">✕</span>
+            </div>
+          )}
+
+          {/* 底部物种托盘 */}
+          <div className={`tray ${trayOpen ? 'open' : ''}`}>
+            <div className="tray-handle" onClick={() => setTrayOpen((v) => !v)} />
+            <div className="tray-header">
+              <h2 onClick={() => setTrayOpen((v) => !v)}>
+                {loadingSpecies ? '正在探索附近的生物…' : locationName ? `${locationName}附近的生物` : '附近的生物'}
+                {!loadingSpecies && species.length > TOP_N_SPECIES && (
+                  <span className="tray-subtitle">
+                    {showAllSpecies ? ` · 共 ${species.length} 种` : ` · 精选 ${Math.min(TOP_N_SPECIES, species.length)}/${species.length} 种`}
+                  </span>
+                )}
+              </h2>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button className="suggestion-chip" onClick={refreshHere}>🔄 刷新</button>
+                <button className="tray-toggle-btn" onClick={() => setTrayOpen((v) => !v)}>
+                  {trayOpen ? '收起 ▾' : '展开 ▴'}
+                </button>
+              </div>
+            </div>
+
+            {/* 地点自然信息 + 当前搜索范围说明（解决"为什么附近有这个物种"的困惑） */}
+            {geoInfo && (
+              <div className="geo-info">
+                <span className="geo-chip">🧭 {geoInfo.latText}, {geoInfo.lngText}</span>
+                {geoInfo.elevation != null && (
+                  <span className="geo-chip">⛰️ 海拔 {geoInfo.elevation} m</span>
+                )}
+                <span className="geo-chip">{geoInfo.climateZone}</span>
+                {rangeInfo && (
+                  <span className="geo-chip geo-chip-range">
+                    🔍 搜索范围 {rangeInfo.radiusKm}km{rangeInfo.isMountainous ? '（按海拔分层）' : ''}
+                  </span>
+                )}
+                <div className="geo-hint">🌿 {geoInfo.climateHint}</div>
+                <div className="geo-hint geo-source-hint">
+                  📊 以下物种数据来自 iNaturalist 全球公民科学社区的真实观测记录
+                </div>
+              </div>
+            )}
+            <div className="tray-list">
+              {loadingSpecies ? (
+                Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton-card" />)
+              ) : species.length === 0 ? (
+                <div className="tray-empty">这附近暂时没有找到记录，试着移动地图或切换分类～</div>
+              ) : (
+                <>
+                  {displaySpecies.map((s) => (
+                    <SpeciesCard key={s.id} species={s} collected={collectedIds.has(s.id)} onClick={() => openDetail(s)} />
+                  ))}
+                  {species.length > TOP_N_SPECIES && (
+                    <button className="show-more-btn" onClick={() => setShowAllSpecies((v) => !v)}>
+                      {showAllSpecies ? '▴ 收起，只看精选' : `▾ 查看全部 ${species.length} 种`}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* AI 浮动按钮 */}
       <button className="ai-fab" onClick={() => { setAiSpecies(null); setAiOpen(true); }}>

@@ -1,4 +1,4 @@
-import type { ChatMessage, AIContext, Species } from '../types';
+import type { ChatMessage, AIContext, Species, ElevationBand } from '../types';
 import { matchOfflineKnowledge } from '../constants';
 
 /* AI 自然向导服务。
@@ -86,4 +86,103 @@ export function buildSuggestions(currentSpecies?: Species | null): string[] {
     ];
   }
   return ['鸟类为什么会迁徙？', '蒲公英种子怎么飞散？', '蜜蜂是怎么传粉的？', '我该怎么保护身边的自然？'];
+}
+
+/* ---------- AI 旅行攻略文案生成 ----------
+ * 核心原则："AI 不编数据，只把真实数据讲成有温度的文案"——
+ * 所有物种名字、观测次数、海拔分层都是真实数据，AI 只负责组织语言。 */
+
+export interface TravelNarrativeInput {
+  destination: string;
+  month: number;
+  days?: number;
+  isMountainous: boolean;
+  elevationBands: ElevationBand[];
+  speciesHighlights: Species[];
+  totalObservations: number;
+  climateZone: string;
+}
+
+export interface TravelNarrativeResult {
+  narrative: string;
+  bestTimeHint: string;
+  equipmentTips: string;
+  routeHint: string;
+}
+
+export async function generateTravelNarrative(input: TravelNarrativeInput): Promise<TravelNarrativeResult> {
+  if (!aiConfigured()) return offlineTravelNarrative(input);
+  try {
+    return await callTravelNarrativeAPI(input);
+  } catch (err) {
+    console.warn('[AI] 攻略文案生成失败，使用离线兜底:', (err as Error).message);
+    return offlineTravelNarrative(input);
+  }
+}
+
+async function callTravelNarrativeAPI(input: TravelNarrativeInput): Promise<TravelNarrativeResult> {
+  const dataDesc = input.isMountainous
+    ? input.elevationBands
+        .map((b) => `${b.label}(海拔${b.minElevation}-${b.maxElevation}m，${b.observationCount}次观测): ${b.species.map((s) => s.cn_name).join('、')}`)
+        .join('；')
+    : `代表性物种: ${input.speciesHighlights.map((s) => `${s.cn_name}(观测${s.count || 0}次)`).join('、')}`;
+
+  const prompt = `你是"自然探索家"App 的 AI 自然向导。请根据以下真实数据（来自 iNaturalist 公民科学社区），
+为用户生成一份 ${input.month} 月去"${input.destination}"的自然观察攻略。
+
+真实数据（必须基于这些数据，不要编造未提及的物种）：
+- 目的地：${input.destination}，气候带：${input.climateZone}
+- 历史 ${input.month} 月真实观测记录：共 ${input.totalObservations} 次${input.days ? `，用户预计游玩 ${input.days} 天` : ''}
+- ${dataDesc}
+
+请只输出一个 JSON 对象（不要 markdown 代码块，不要任何多余文字），字段如下：
+{
+  "narrative": "150字以内、有温度、吸引人的攻略导语，需提及至少2-3个具体物种名字",
+  "bestTimeHint": "最佳观察时段建议，30字以内",
+  "equipmentTips": "结合当地气候/地形的装备建议，40字以内",
+  "routeHint": "简易路线建议，40字以内"
+}`;
+
+  const base = BASE_URL.replace(/\/+$/, '');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  const res = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    signal: controller.signal,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${API_KEY}` },
+    body: JSON.stringify({
+      model: MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.8,
+      max_tokens: 500,
+    }),
+  });
+  clearTimeout(timeout);
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  const json = await res.json();
+  const text = (json.choices?.[0]?.message?.content || '').trim();
+  const cleaned = text.replace(/```json|```/g, '').trim();
+  const parsed = JSON.parse(cleaned);
+  const fallback = offlineTravelNarrative(input);
+  return {
+    narrative: parsed.narrative || fallback.narrative,
+    bestTimeHint: parsed.bestTimeHint || fallback.bestTimeHint,
+    equipmentTips: parsed.equipmentTips || fallback.equipmentTips,
+    routeHint: parsed.routeHint || fallback.routeHint,
+  };
+}
+
+/** AI 未配置或调用失败时的离线兜底文案（仍然基于真实数据组织语言，不是假数据） */
+function offlineTravelNarrative(input: TravelNarrativeInput): TravelNarrativeResult {
+  const topNames = input.isMountainous
+    ? input.elevationBands.flatMap((b) => b.species.slice(0, 2).map((s) => s.cn_name))
+    : input.speciesHighlights.slice(0, 3).map((s) => s.cn_name);
+  const namesText = topNames.length ? `，比如${topNames.join('、')}` : '';
+
+  return {
+    narrative: `${input.month}月的${input.destination}，历史上已有${input.totalObservations}次真实观测记录${namesText}。${input.climateZone}的气候条件下，这里的自然生态值得细细探索——带上好奇心出发吧！`,
+    bestTimeHint: '清晨6-8点或黄昏5-7点，是野生动物活动最活跃的时段',
+    equipmentTips: `建议携带望远镜、相机和适合${input.climateZone}气候的衣物`,
+    routeHint: input.isMountainous ? '建议从山脚开始，循序渐进向上探索各海拔层' : '建议在目的地周边多个观察点分散探索',
+  };
 }
