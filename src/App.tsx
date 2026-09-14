@@ -9,6 +9,7 @@ import { SpeciesCard } from './components/SpeciesCard';
 import { SpeciesDetailModal } from './components/SpeciesDetailModal';
 import { CollectionDrawer } from './components/CollectionDrawer';
 import { AIDrawer } from './components/AIDrawer';
+import { OnboardingGuide } from './components/OnboardingGuide';
 import { UserDrawer } from './components/UserDrawer';
 import { CommunityDrawer } from './components/CommunityDrawer';
 import { SharePanel } from './components/SharePanel';
@@ -24,6 +25,7 @@ import { PLAN_RADIUS_KM } from './services/travelPlan';
 
 // 底部列表默认精选数量：旅行者需要"快速掌握重点"，不是"看到全部"
 const TOP_N_SPECIES = 12;
+const ONBOARDING_KEY = 'nature-explorer-onboarding-done';
 
 export default function App() {
   const { user, loading: authLoading, configured } = useAuth();
@@ -72,6 +74,12 @@ export default function App() {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareSpecies, setShareSpecies] = useState<Species | null>(null);
   const [communityRefresh, setCommunityRefresh] = useState(0);
+
+  // 首次使用新手引导：三个任务——探索/查看详情/收集，走完核心价值路径
+  const [onboardingDone, setOnboardingDone] = useState(() => localStorage.getItem(ONBOARDING_KEY) === '1');
+  const [hasExploredManually, setHasExploredManually] = useState(false);
+  const [hasViewedDetail, setHasViewedDetail] = useState(false);
+  const onboardingAllDone = hasExploredManually && hasViewedDetail && collection.length > 0;
 
   const userId = user?.id ?? null;
 
@@ -191,6 +199,7 @@ export default function App() {
    *             为空时才回退到 reverseGeocode。 */
   const exploreLocation = useCallback(async (lat: number, lng: number, presetName?: string) => {
     setShowMapHint(false);
+    setHasExploredManually(true); // 新手任务①：主动探索过一个地点
     setCenter([lat, lng]);
     setGeoInfo(null);
     Notification.info('正在探索这个地点…');
@@ -253,6 +262,7 @@ export default function App() {
   const openDetail = useCallback((s: Species) => {
     setDetailSpecies(s);
     setDetailOpen(true);
+    setHasViewedDetail(true); // 新手任务②：查看过物种详情
   }, []);
 
   /* ---------- 收集 / 取消收集 ---------- */
@@ -373,6 +383,22 @@ export default function App() {
           👆 点击地图上任意位置，探索那里的动植物（比如拉萨、三亚、你的家乡…）
           <span className="map-hint-close">✕</span>
         </div>
+      )}
+
+      {/* 首次使用新手任务引导 */}
+      {!onboardingDone && (
+        <OnboardingGuide
+          tasks={[
+            { key: 'explore', icon: '🗺️', label: '探索一个地点', done: hasExploredManually },
+            { key: 'view', icon: '🔍', label: '查看一个物种详情', done: hasViewedDetail },
+            { key: 'collect', icon: '📖', label: '收集你的第一个物种', done: collection.length > 0 },
+          ]}
+          allDone={onboardingAllDone}
+          onAllDone={() => {
+            localStorage.setItem(ONBOARDING_KEY, '1');
+            setOnboardingDone(true);
+          }}
+        />
       )}
 
       {/* 底部物种托盘 */}

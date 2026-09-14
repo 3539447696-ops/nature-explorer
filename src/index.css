@@ -327,6 +327,46 @@ body {
 .poster-footer-logo { font-size: 16px; font-weight: 900; color: var(--animal-primary); }
 .poster-footer-sub { font-size: 10px; color: var(--animal-text-secondary); letter-spacing: 0.5px; }
 
+/* ---------- 首次使用新手任务引导 ---------- */
+.onboarding-guide {
+  position: fixed; top: 168px; right: 12px; z-index: 930;
+  background: #fffdf8; border: 2px solid var(--animal-border); border-radius: 16px;
+  box-shadow: var(--shadow-lg); overflow: hidden; width: 168px;
+}
+.onboarding-guide-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; font-size: 11.5px; font-weight: 800; color: var(--animal-text-body);
+  cursor: pointer; background: var(--animal-bg-content);
+}
+.onboarding-guide-toggle { font-size: 10px; color: var(--animal-text-secondary); }
+.onboarding-guide-list { padding: 6px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.onboarding-task { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--animal-text-secondary); }
+.onboarding-task.done { color: var(--animal-primary); font-weight: 700; text-decoration: line-through; opacity: 0.7; }
+.onboarding-task-check { font-size: 11px; flex-shrink: 0; }
+.onboarding-task-icon { font-size: 12px; flex-shrink: 0; }
+.onboarding-task-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 全部完成的庆祝层 */
+.onboarding-celebration {
+  position: fixed; inset: 0; z-index: 5500; display: flex; align-items: center; justify-content: center;
+  background: rgba(61, 52, 40, 0.55); backdrop-filter: blur(2px);
+  animation: onboardingFadeIn 0.3s ease;
+}
+.onboarding-celebration-inner {
+  background: #fffdf8; border-radius: 24px; padding: 32px 28px; text-align: center;
+  box-shadow: var(--shadow-lg); max-width: 280px;
+  animation: onboardingPopIn 0.5s var(--animal-ease);
+}
+.onboarding-celebration-icon { font-size: 56px; margin-bottom: 8px; }
+.onboarding-celebration-title { font-size: 16px; font-weight: 800; color: var(--animal-text); margin-bottom: 10px; }
+.onboarding-celebration-badge {
+  display: inline-block; padding: 8px 20px; border-radius: 20px; font-size: 15px; font-weight: 900;
+  background: var(--animal-primary); color: #fff; margin-bottom: 10px;
+}
+.onboarding-celebration-sub { font-size: 12px; color: var(--animal-text-secondary); line-height: 1.6; }
+@keyframes onboardingFadeIn { from{opacity:0} to{opacity:1} }
+@keyframes onboardingPopIn { 0%{transform:scale(0.7);opacity:0} 60%{transform:scale(1.05)} 100%{transform:scale(1);opacity:1} }
+
 /* ---------- 攻略面板容器 ---------- */
 .travel-plan-panel {
   position: fixed; top: 110px; left: 0; right: 0; bottom: 0; z-index: 900;
