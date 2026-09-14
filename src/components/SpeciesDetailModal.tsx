@@ -41,7 +41,11 @@ export function SpeciesDetailModal({
 
   if (!species || !detail) return null;
   const meta = getTaxonMeta(detail.taxon);
-  const obsCount = detail.observationsCount || detail.count;
+  // 必须优先展示"这附近"的真实观测次数（这是"数据可验证"的核心承诺）——
+  // observationsCount 是该物种的全球总观测次数（可能十几万次，跟当前地点毫无关系），
+  // 绝不能让它覆盖掉本地 count，否则会出现"这附近观测125649次"这种严重误导。
+  const localCount = detail.count;
+  const globalCount = detail.observationsCount;
 
   return (
     <Modal open={open} onClose={onClose} typewriter={false} footer={null} width={460}>
@@ -63,7 +67,11 @@ export function SpeciesDetailModal({
         {detail.conservationStatus && (
           <Tag color="app-red" variant="outlined">保护状态: {detail.conservationStatus}</Tag>
         )}
-        {obsCount ? <Tag color="app-teal" variant="outlined">👁️ 观测 {obsCount} 次</Tag> : null}
+        {localCount ? (
+          <Tag color="app-teal" variant="outlined">👁️ 这附近观测 {localCount} 次</Tag>
+        ) : globalCount ? (
+          <Tag color="app-teal" variant="outlined">🌍 全球观测 {globalCount} 次</Tag>
+        ) : null}
       </div>
 
       <div className="detail-section">
