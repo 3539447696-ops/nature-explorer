@@ -26,6 +26,47 @@ export function getTaxonMeta(taxon: string): TaxonMeta {
   return TAXON_CONFIG[taxon] || { icon: '🌿', cn: '生物', color: 'default', markerColor: '#9f927d' };
 }
 
+/** 按分类统计数量（用于分类过滤器 Tag 加实时数量角标，如"🐦鸟类 23"） */
+export function countByTaxon(species: Species[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const s of species) {
+    counts[s.taxon] = (counts[s.taxon] || 0) + 1;
+  }
+  return counts;
+}
+
+/**
+ * 按分类"均衡采样"：轮流从各分类中各取一个物种，而不是简单取前 N 个。
+ * 目的：iNaturalist 数据里鸟类观测量通常远超其他类别，简单截取前 N 个
+ * 会导致地图上全是鸟类图标，看不到植物/昆虫等其他类别。
+ * 组内保持原有顺序（已按观测次数降序），保证轮到的都是该类里最有代表性的。
+ */
+export function pickBalancedSample(species: Species[], limit: number): Species[] {
+  if (species.length <= limit) return species;
+  const groups = new Map<string, Species[]>();
+  for (const s of species) {
+    const arr = groups.get(s.taxon) || [];
+    arr.push(s);
+    groups.set(s.taxon, arr);
+  }
+  const groupArrays = Array.from(groups.values());
+  const result: Species[] = [];
+  let round = 0;
+  while (result.length < limit) {
+    let addedInRound = false;
+    for (const arr of groupArrays) {
+      if (round < arr.length) {
+        result.push(arr[round]);
+        addedInRound = true;
+        if (result.length >= limit) break;
+      }
+    }
+    if (!addedInRound) break; // 所有组都已耗尽
+    round++;
+  }
+  return result;
+}
+
 // 顶部分类过滤器
 export const FILTERS: { value: string; label: string }[] = [
   { value: 'all', label: '全部' },

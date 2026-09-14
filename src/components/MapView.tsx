@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import type { Species } from '../types';
-import { getTaxonMeta } from '../constants';
+import { getTaxonMeta, pickBalancedSample } from '../constants';
 
 interface MapViewProps {
   center: [number, number] | null;
@@ -92,11 +92,15 @@ export function MapView({ center, species, collectedIds, onMarkerClick, onMapCli
     layer.clearLayers();
 
     const [baseLat, baseLng] = center;
-    species.slice(0, 20).forEach((sp, i) => {
+    // 上限从 20 提升到 50，且用"分类均衡采样"而非简单截取前 N 个 ——
+    // 避免鸟类（观测数据量通常最大）占满所有名额，导致地图上看不到其他类别。
+    const MAX_MARKERS = 50;
+    const displayed = pickBalancedSample(species, MAX_MARKERS);
+    displayed.forEach((sp, i) => {
       let lat = sp._lat;
       let lng = sp._lng;
       if (lat == null || lng == null) {
-        const angle = (i / 20) * Math.PI * 2 + (i * 2.399);
+        const angle = (i / displayed.length) * Math.PI * 2 + (i * 2.399);
         const dist = 0.008 + ((i * 37) % 30) / 1000;
         lat = baseLat + Math.cos(angle) * dist;
         lng = baseLng + Math.sin(angle) * dist * 1.3;

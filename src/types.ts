@@ -66,3 +66,45 @@ export interface AIContext {
 
 // 过滤器取值
 export type FilterValue = 'all' | TaxonName;
+
+/* ---------- AI 旅行攻略：数据结构 ---------- */
+
+// 攻略生成请求（用户输入）
+export interface TravelPlanRequest {
+  destination: string; // 目的地展示名，如 "泰山"
+  lat: number;
+  lng: number;
+  month: number;        // 出行月份 1-12（用于筛选历史同期真实观测）
+  days?: number;         // 出行天数（可选，影响路线建议的详略）
+}
+
+// 海拔分层里的一段（如"半山"）
+export interface ElevationBand {
+  label: string;          // "🏞️ 山脚" / "🌳 半山" / "🏔️ 山顶"
+  minElevation: number;
+  maxElevation: number;
+  lat: number;            // 该带的代表采样坐标（用于地图预标注）
+  lng: number;
+  species: Species[];     // 该海拔带的推荐物种（含真实观测次数）
+  observationCount: number; // 该带汇总观测次数，用于"数据可信度"标注
+}
+
+// 完整的一份 AI 旅行攻略
+export interface TravelPlan {
+  destination: string;
+  lat: number;
+  lng: number;
+  month: number;
+  days?: number;
+  isMountainous: boolean;         // 是否触发了海拔分层模式
+  elevationBands: ElevationBand[]; // 山地类目的地：分层数据；非山地为空数组
+  speciesHighlights: Species[];    // 非山地目的地：平铺的物种推荐（或分层模式下的"综合精选"）
+  totalObservations: number;       // 总真实观测次数（核心可信度指标）
+  climateZone: string;             // 气候带描述（复用 geoinfo 的推算）
+  elevation: number | null;        // 目的地中心海拔
+  bestTimeHint: string;            // 最佳观察时段建议（AI生成）
+  equipmentTips: string;           // 装备提示（AI生成）
+  routeHint: string;               // 简易路线建议（AI生成）
+  narrative: string;               // 攻略正文（AI生成，有温度的文案）
+  generatedAt: number;
+}

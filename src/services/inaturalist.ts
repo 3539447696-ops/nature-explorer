@@ -59,22 +59,50 @@ function gcj02ToWgs84(lat: number, lng: number): [number, number] {
 export interface NearbyResult {
   data: Species[];
   source: 'inat' | 'inat-empty' | 'fallback';
+  usedRadiusKm?: number; // 实际生效的搜索半径（触发智能扩大后会 > 传入值），供 UI 提示
 }
 
-/** 获取坐标附近被观测到的物种（按观测次数排序 → 当地常见/代表性物种） */
+const MIN_ACCEPTABLE_SPECIES = 15; // 少于这个数量视为"太稀疏"，触发智能扩大半径
+
+/** 获取坐标附近被观测到的物种（按观测次数排序 → 当地常见/代表性物种）。
+ * 内置"半径智能降级"：默认半径数据太少时，自动扩大范围重试一次，
+ * 避免数据本就稀疏的地区（如国内大部分非热门区域）出现"附近空空如也"。 */
 export async function fetchNearbySpecies(
   lat: number,
   lng: number,
   radiusKm = 30,
   iconicTaxon: string | null = null,
 ): Promise<NearbyResult> {
+  const first = await queryNearbySpecies(lat, lng, radiusKm, iconicTaxon);
+  if (first.source !== 'inat' || first.data.length >= MIN_ACCEPTABLE_SPECIES || radiusKm >= 100) {
+    return { ...first, usedRadiusKm: radiusKm };
+  }
+  // 数据太稀疏 → 自动扩大半径重试一次（最大不超过 100km，避免"附近"失真太多）
+  const expandedRadius = Math.min(Math.round(radiusKm * 2.5), 100);
+  console.info(`[iNaturalist] ${radiusKm}km 内仅 ${first.data.length} 种，自动扩大到 ${expandedRadius}km 重试`);
+  const expanded = await queryNearbySpecies(lat, lng, expandedRadius, iconicTaxon);
+  if (expanded.data.length > first.data.length) {
+    return { ...expanded, usedRadiusKm: expandedRadius };
+  }
+  return { ...first, usedRadiusKm: radiusKm };
+}
+
+/** 单次查询（内部函数，被 fetchNearbySpecies 的降级逻辑复用） */
+async function queryNearbySpecies(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  iconicTaxon: string | null,
+): Promise<NearbyResult> {
   const params = new URLSearchParams({
     lat: lat.toFixed(5),
     lng: lng.toFixed(5),
     radius: String(radiusKm),
-    quality_grade: 'research',
+    // 放宽筛选门槛：research(研究级)+needs_id(待鉴定但已有基本记录)，
+    // 国内观测密度远低于欧美，只卡 research 会过滤掉大量真实记录。
+    quality_grade: 'research,needs_id',
     locale: 'zh-CN',
-    per_page: '50',
+    per_page: '100', // 上限从 50 提升到 100，配合下方分类均衡采样使用
     order: 'desc',
     order_by: 'count',
   });

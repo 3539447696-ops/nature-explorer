@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type L from 'leaflet';
 import { Tag, Notification, Loading } from 'animal-island-ui';
 import { useAuth } from './contexts/AuthContext';
@@ -15,7 +15,7 @@ import { SharePanel } from './components/SharePanel';
 import { fetchNearbySpecies, reverseGeocode, type PlaceResult } from './services/inaturalist';
 import { CollectionService } from './services/collection';
 import { getGeoInfo, type GeoInfo } from './services/geoinfo';
-import { FILTERS, DEFAULT_LATLNG, getTaxonMeta } from './constants';
+import { FILTERS, DEFAULT_LATLNG, getTaxonMeta, countByTaxon } from './constants';
 import type { Species } from './types';
 
 export default function App() {
@@ -34,6 +34,9 @@ export default function App() {
   const [filter, setFilter] = useState('all');
   const [trayOpen, setTrayOpen] = useState(true);
   const mapRef = useRef<L.Map | null>(null);
+
+  // 各分类数量统计，用于过滤器 Tag 加实时角标（如"🐦鸟类 23"）
+  const taxonCounts = useMemo(() => countByTaxon(species), [species]);
 
   // 图鉴
   const [collection, setCollection] = useState<Species[]>([]);
@@ -86,13 +89,17 @@ export default function App() {
   const loadSpecies = useCallback(async (lat: number, lng: number, flt: string) => {
     setLoadingSpecies(true);
     setTrayOpen(true);
-    const result = await fetchNearbySpecies(lat, lng, 30, flt);
+    const DEFAULT_RADIUS = 30;
+    const result = await fetchNearbySpecies(lat, lng, DEFAULT_RADIUS, flt);
     setSpecies(result.data);
     setLoadingSpecies(false);
     if (result.source === 'fallback') {
       Notification.info({ message: '未能连接实时数据库', description: '已展示离线示例物种' });
     } else if (result.data.length === 0) {
       Notification.info('这附近暂无记录，换个位置试试～');
+    } else if (result.usedRadiusKm && result.usedRadiusKm > DEFAULT_RADIUS) {
+      // 触发了半径智能降级：告知用户数据来自更大范围，避免"这也算附近？"的困惑
+      Notification.info(`这附近记录较少，已自动扩大搜索范围到 ${result.usedRadiusKm}km 🔍`);
     }
   }, []);
 
@@ -266,18 +273,21 @@ export default function App() {
       {/* 地点搜索框 */}
       <SearchBar onSelect={onSearchSelect} />
 
-      {/* 分类过滤 */}
+      {/* 分类过滤（带实时数量角标，方便一眼看出哪类多哪类少） */}
       <div className="filter-bar">
-        {FILTERS.map((f) => (
-          <Tag
-            key={f.value}
-            color={filter === f.value ? 'app-green' : 'default'}
-            variant={filter === f.value ? 'solid' : 'outlined'}
-            onClick={() => changeFilter(f.value)}
-          >
-            {f.label}
-          </Tag>
-        ))}
+        {FILTERS.map((f) => {
+          const count = f.value === 'all' ? species.length : (taxonCounts[f.value] || 0);
+          return (
+            <Tag
+              key={f.value}
+              color={filter === f.value ? 'app-green' : 'default'}
+              variant={filter === f.value ? 'solid' : 'outlined'}
+              onClick={() => changeFilter(f.value)}
+            >
+              {f.label}{count > 0 ? ` ${count}` : ''}
+            </Tag>
+          );
+        })}
       </div>
 
       {/* 点击地图探索的引导提示 */}
