@@ -57,6 +57,8 @@ export interface Species {
   distanceKm?: number;       // 到中心点的水平距离（平地场景展示用）
   elevationM?: number;       // 该观测点的海拔（山地场景用于分层）
   elevationBand?: string;    // 归类后的层级标签，如"🌳半山(300-800m)"（山地场景展示用）
+  // ---- 旅行攻略专属：观察要点（AI针对该物种生成的一句实用提示） ----
+  observeTip?: string;
 }
 
 // AI 对话消息

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Drawer, Input, Button, Tag } from 'animal-island-ui';
+import { Drawer, Input, Button } from 'animal-island-ui';
 import type { ChatMessage, Species, TravelPlan } from '../types';
 import { aiChat, buildSuggestions } from '../services/ai';
 import { generateTravelPlan } from '../services/travelPlan';
@@ -188,6 +188,28 @@ export function AIDrawer({ open, onClose, currentSpecies, location, centerLat, c
   );
 }
 
+// 通用自然观察伦理守则：几乎所有攻略都适用，不依赖 AI 生成，保证稳定可靠
+const OBSERVE_ETIQUETTE = [
+  '保持安全距离，不主动靠近、追赶或触碰野生动植物',
+  '不投喂、不采摘、不带走，观察即可，尽量不留下痕迹',
+  '轻声慢行，避免使用闪光灯或模拟叫声打扰动物正常活动',
+];
+
+/** 单个物种的紧凑展示行：名字 + 观测次数 + 一句观察要点 */
+function SpeciesTipRow({ s }: { s: Species }) {
+  const meta = getTaxonMeta(s.taxon);
+  return (
+    <div className="species-tip-row">
+      <div className="species-tip-name">
+        <span className="species-tip-icon">{meta.icon}</span>
+        <span>{s.cn_name}</span>
+        <span className="species-tip-count">· {s.count || 0}次</span>
+      </div>
+      {s.observeTip && <div className="species-tip-text">💡 {s.observeTip}</div>}
+    </div>
+  );
+}
+
 /** 内嵌在对话流里的紧凑版攻略结果卡片（不是独立页面，是一条特殊样式的"聊天消息"） */
 function AIPlanResultCard({ plan, onExplore }: { plan: TravelPlan; onExplore: () => void }) {
   const speciesToShow = plan.isMountainous
@@ -205,34 +227,32 @@ function AIPlanResultCard({ plan, onExplore }: { plan: TravelPlan; onExplore: ()
           {plan.elevationBands.map((band) => (
             <div key={band.label} className="plan-result-band">
               <span className="band-label-mini">{band.label}</span>
-              <div className="plan-result-species">
-                {band.species.slice(0, 3).map((s) => {
-                  const meta = getTaxonMeta(s.taxon);
-                  return (
-                    <Tag key={s.id} size="small" color={meta.color as any} variant="outlined">
-                      {meta.icon} {s.cn_name}
-                    </Tag>
-                  );
-                })}
+              <div className="species-tip-list">
+                {band.species.slice(0, 3).map((s) => (
+                  <SpeciesTipRow key={s.id} s={s} />
+                ))}
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="plan-result-species">
-          {speciesToShow.map((s) => {
-            const meta = getTaxonMeta(s.taxon);
-            return (
-              <Tag key={s.id} size="small" color={meta.color as any} variant="outlined">
-                {meta.icon} {s.cn_name} · {s.count || 0}次
-              </Tag>
-            );
-          })}
+        <div className="species-tip-list">
+          {speciesToShow.map((s) => (
+            <SpeciesTipRow key={s.id} s={s} />
+          ))}
         </div>
       )}
 
       <div className="plan-result-tip">🕐 {plan.bestTimeHint}</div>
       <div className="plan-result-tip">🎒 {plan.equipmentTips}</div>
+
+      {/* 通用观察须知：静态守则，稳定可靠，不依赖 AI 生成质量 */}
+      <div className="plan-etiquette">
+        <div className="plan-etiquette-title">🌿 观察须知</div>
+        {OBSERVE_ETIQUETTE.map((tip, i) => (
+          <div key={i} className="plan-etiquette-item">· {tip}</div>
+        ))}
+      </div>
 
       <Button size="small" type="primary" block onClick={onExplore}>🔍 开始探索这里</Button>
     </div>

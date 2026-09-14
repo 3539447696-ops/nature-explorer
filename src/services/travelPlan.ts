@@ -63,7 +63,7 @@ export async function generateTravelPlan(request: TravelPlanRequest): Promise<Tr
     speciesHighlights = pickBalancedSample(species, 10);
   }
 
-  // 4. AI 生成有温度的文案（narrative/最佳时段/装备/路线）—— 完全基于上面的真实数据
+  // 4. AI 生成有温度的文案（narrative/最佳时段/装备/路线/每个物种的观察要点）
   const narrative = await generateTravelNarrative({
     destination,
     month,
@@ -75,6 +75,13 @@ export async function generateTravelPlan(request: TravelPlanRequest): Promise<Tr
     climateZone: geoInfo.climateZone,
   });
 
+  // 把 AI 生成的"物种→观察要点"映射，应用到每个物种对象上（observeTip 字段）
+  const applyTips = (list: Species[]) =>
+    list.map((s) => (narrative.speciesTips[s.cn_name] ? { ...s, observeTip: narrative.speciesTips[s.cn_name] } : s));
+
+  const finalElevationBands = elevationBands.map((b) => ({ ...b, species: applyTips(b.species) }));
+  const finalSpeciesHighlights = applyTips(speciesHighlights);
+
   return {
     destination,
     lat,
@@ -82,8 +89,8 @@ export async function generateTravelPlan(request: TravelPlanRequest): Promise<Tr
     month,
     days,
     isMountainous,
-    elevationBands,
-    speciesHighlights,
+    elevationBands: finalElevationBands,
+    speciesHighlights: finalSpeciesHighlights,
     totalObservations,
     climateZone: geoInfo.climateZone,
     elevation: geoInfo.elevation,

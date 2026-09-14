@@ -246,9 +246,11 @@ body {
 }
 .mode-tab.active { background: var(--animal-primary); color: #fff; border-color: var(--animal-primary); }
 
-/* ---------- AI 向导：内嵌"生成攻略"引导卡片 / 结果卡片（聊天消息流的一部分） ---------- */
+/* ---------- AI 向导：内嵌"生成攻略"引导卡片 / 结果卡片（聊天消息流的一部分） ----------
+ * 配色原则：整体走柔和的米棕色系（跟全局奶油背景协调），主色调（薄荷青绿）
+ * 只用在关键按钮和极少量的强调线上，不铺大面积背景/边框，避免视觉突兀。 */
 .ai-plan-prompt {
-  background: var(--animal-primary-bg); border: 2px dashed var(--animal-primary);
+  background: var(--animal-bg-content); border: 2px dashed var(--animal-border);
   border-radius: 16px; padding: 12px 14px; margin: 8px 0; display: flex;
   flex-direction: column; gap: 10px; align-self: flex-start; max-width: 88%;
 }
@@ -257,7 +259,7 @@ body {
 .plan-loading-msg { display: flex; align-items: center; gap: 8px; }
 .ai-plan-loading-dots { display: inline-flex; gap: 3px; }
 .ai-plan-loading-dots span {
-  width: 5px; height: 5px; border-radius: 50%; background: var(--animal-primary);
+  width: 5px; height: 5px; border-radius: 50%; background: var(--animal-border);
   animation: aiPlanBlink 1.2s ease-in-out infinite;
 }
 .ai-plan-loading-dots span:nth-child(2) { animation-delay: .2s; }
@@ -265,18 +267,30 @@ body {
 @keyframes aiPlanBlink { 0%,100%{opacity:.3} 50%{opacity:1} }
 
 .ai-plan-result {
-  background: #fff; border: 2px solid var(--animal-border); border-radius: 16px;
+  background: #fffdf8; border: 2px solid var(--animal-border); border-radius: 16px;
   padding: 14px; margin: 8px 0; display: flex; flex-direction: column; gap: 8px;
   box-shadow: var(--shadow-soft); max-width: 92%;
 }
 .plan-result-title { font-size: 14px; font-weight: 800; color: var(--animal-text); }
-.plan-result-credibility { font-size: 11px; font-weight: 700; color: var(--animal-primary); }
+.plan-result-credibility { font-size: 11px; font-weight: 700; color: var(--animal-text-secondary); }
 .plan-result-narrative { font-size: 13px; line-height: 1.6; color: var(--animal-text-body); margin: 2px 0; }
-.plan-result-bands { display: flex; flex-direction: column; gap: 6px; }
-.plan-result-band { display: flex; flex-direction: column; gap: 4px; }
+.plan-result-bands { display: flex; flex-direction: column; gap: 10px; }
+.plan-result-band { display: flex; flex-direction: column; gap: 6px; }
 .band-label-mini { font-size: 12px; font-weight: 700; color: var(--animal-text-body); }
-.plan-result-species { display: flex; flex-wrap: wrap; gap: 4px; }
 .plan-result-tip { font-size: 12px; color: var(--animal-text-secondary); line-height: 1.5; }
+
+/* 每个物种一行：名字 + 观测次数 + 一句观察要点，替代之前五颜六色堆叠的 Tag 展示 */
+.species-tip-list { display: flex; flex-direction: column; gap: 6px; }
+.species-tip-row { padding: 8px 10px; background: var(--animal-bg-content); border-radius: 10px; }
+.species-tip-name { display: flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 700; color: var(--animal-text-body); }
+.species-tip-icon { font-size: 13px; }
+.species-tip-count { font-size: 11px; color: var(--animal-text-secondary); font-weight: 500; }
+.species-tip-text { font-size: 11.5px; color: var(--animal-text-secondary); margin-top: 3px; line-height: 1.45; }
+
+/* 通用观察须知：用左侧细边线做克制的强调，而不是大面积色块 */
+.plan-etiquette { margin-top: 4px; padding: 10px 12px; background: var(--animal-bg-content); border-radius: 10px; border-left: 3px solid var(--animal-primary); }
+.plan-etiquette-title { font-size: 12px; font-weight: 700; color: var(--animal-text-body); margin-bottom: 4px; }
+.plan-etiquette-item { font-size: 11.5px; color: var(--animal-text-secondary); line-height: 1.6; }
 
 /* ---------- 攻略面板容器 ---------- */
 .travel-plan-panel {

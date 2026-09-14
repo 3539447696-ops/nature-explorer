@@ -108,6 +108,7 @@ export interface TravelNarrativeResult {
   bestTimeHint: string;
   equipmentTips: string;
   routeHint: string;
+  speciesTips: Record<string, string>; // 物种中文名 → 一句实用的观察要点
 }
 
 export async function generateTravelNarrative(input: TravelNarrativeInput): Promise<TravelNarrativeResult> {
@@ -127,8 +128,15 @@ async function callTravelNarrativeAPI(input: TravelNarrativeInput): Promise<Trav
         .join('；')
     : `代表性物种: ${input.speciesHighlights.map((s) => `${s.cn_name}(观测${s.count || 0}次)`).join('、')}`;
 
-  const prompt = `你是"自然探索家"App 的 AI 自然向导。请根据以下真实数据（来自 iNaturalist 公民科学社区），
-为用户生成一份 ${input.month} 月去"${input.destination}"的自然观察攻略。
+  // 需要 AI 逐一生成"观察要点"的重点物种（最多取 8 个，避免 prompt 过长/超时）
+  const tipTargets = (
+    input.isMountainous
+      ? input.elevationBands.flatMap((b) => b.species)
+      : input.speciesHighlights
+  ).slice(0, 8).map((s) => s.cn_name);
+
+  const prompt = `你是"自然探索家"App 的 AI 自然向导，兼具博物学家的专业度和亲切的表达方式。
+请根据以下真实数据（来自 iNaturalist 公民科学社区），为用户生成一份 ${input.month} 月去"${input.destination}"的自然观察攻略。
 
 真实数据（必须基于这些数据，不要编造未提及的物种）：
 - 目的地：${input.destination}，气候带：${input.climateZone}
@@ -140,12 +148,17 @@ async function callTravelNarrativeAPI(input: TravelNarrativeInput): Promise<Trav
   "narrative": "150字以内、有温度、吸引人的攻略导语，需提及至少2-3个具体物种名字",
   "bestTimeHint": "最佳观察时段建议，30字以内",
   "equipmentTips": "结合当地气候/地形的装备建议，40字以内",
-  "routeHint": "简易路线建议，40字以内"
-}`;
+  "routeHint": "简易路线建议，40字以内",
+  "speciesTips": {
+    "物种中文名1": "一句15-25字的实用观察要点（识别特征/活动习性/是否需要保持距离或有无毒性风险等，挑最有用的一点说）",
+    "物种中文名2": "..."
+  }
+}
+speciesTips 请针对这些物种逐一生成，不要遗漏，也不要编造列表外的物种：${tipTargets.join('、')}`;
 
   const base = BASE_URL.replace(/\/+$/, '');
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), 35000);
   const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     signal: controller.signal,
@@ -154,7 +167,7 @@ async function callTravelNarrativeAPI(input: TravelNarrativeInput): Promise<Trav
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.8,
-      max_tokens: 500,
+      max_tokens: 900,
     }),
   });
   clearTimeout(timeout);
@@ -169,20 +182,40 @@ async function callTravelNarrativeAPI(input: TravelNarrativeInput): Promise<Trav
     bestTimeHint: parsed.bestTimeHint || fallback.bestTimeHint,
     equipmentTips: parsed.equipmentTips || fallback.equipmentTips,
     routeHint: parsed.routeHint || fallback.routeHint,
+    speciesTips: (parsed.speciesTips && typeof parsed.speciesTips === 'object') ? parsed.speciesTips : fallback.speciesTips,
   };
 }
 
+// 按大类的通用观察要点兜底（AI 未配置/失败时使用，仍是有实际参考价值的科普知识，不是空话）
+const GENERIC_TIPS_BY_TAXON: Record<string, string> = {
+  Aves: '清晨或黄昏最活跃，保持安静、勿用闪光灯，远距离用望远镜观察即可',
+  Plantae: '注意识别叶形与花期特征，部分植物可能有毒，不要随意采摘或触碰汁液',
+  Mammalia: '性情警觉，多在晨昏活动，保持至少10米以上距离，切勿投喂',
+  Insecta: '细看复眼与翅纹是识别关键，蜂类/毒蛾幼虫等勿用手直接触碰',
+  Reptilia: '体温随环境变化，晴天石缝/枯木附近较易发现，勿伸手抓取',
+  Amphibia: '雨后或近水处活跃，皮肤敏感，观察后请勿用手接触',
+  Actinopterygii: '水质清澈处更易观察到，静立不惊扰水面为佳',
+  Fungi: '注意菌盖与菌褶形态，切勿采食未确认可食用的野生菌类',
+};
+
 /** AI 未配置或调用失败时的离线兜底文案（仍然基于真实数据组织语言，不是假数据） */
 function offlineTravelNarrative(input: TravelNarrativeInput): TravelNarrativeResult {
-  const topNames = input.isMountainous
-    ? input.elevationBands.flatMap((b) => b.species.slice(0, 2).map((s) => s.cn_name))
-    : input.speciesHighlights.slice(0, 3).map((s) => s.cn_name);
+  const allSpecies = input.isMountainous
+    ? input.elevationBands.flatMap((b) => b.species)
+    : input.speciesHighlights;
+  const topNames = allSpecies.slice(0, 3).map((s) => s.cn_name);
   const namesText = topNames.length ? `，比如${topNames.join('、')}` : '';
+
+  const speciesTips: Record<string, string> = {};
+  allSpecies.slice(0, 8).forEach((s) => {
+    speciesTips[s.cn_name] = GENERIC_TIPS_BY_TAXON[s.taxon] || '观察时保持适当距离，不打扰、不投喂、不采摘';
+  });
 
   return {
     narrative: `${input.month}月的${input.destination}，历史上已有${input.totalObservations}次真实观测记录${namesText}。${input.climateZone}的气候条件下，这里的自然生态值得细细探索——带上好奇心出发吧！`,
     bestTimeHint: '清晨6-8点或黄昏5-7点，是野生动物活动最活跃的时段',
     equipmentTips: `建议携带望远镜、相机和适合${input.climateZone}气候的衣物`,
     routeHint: input.isMountainous ? '建议从山脚开始，循序渐进向上探索各海拔层' : '建议在目的地周边多个观察点分散探索',
+    speciesTips,
   };
 }
