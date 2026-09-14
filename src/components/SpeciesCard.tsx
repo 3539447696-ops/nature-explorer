@@ -23,6 +23,17 @@ export function SpeciesCard({ species, collected, onClick }: SpeciesCardProps) {
         )}
         <div className="cn-name">{species.cn_name || '未知物种'}</div>
         <div className="sci-name">{species.sci_name || ''}</div>
+        {/* 数据可解释性：距离/海拔层级 + 观测次数，让"为什么推荐这个"变得可追溯 */}
+        {(species.elevationBand || species.distanceKm != null || species.count) && (
+          <div className="card-meta">
+            {species.elevationBand
+              ? species.elevationBand
+              : species.distanceKm != null
+                ? `📍约${species.distanceKm}km`
+                : ''}
+            {species.count ? ` · 观测${species.count}次` : ''}
+          </div>
+        )}
         <div style={{ marginTop: 6 }}>
           <Tag size="small" color={meta.color as any} variant="solid">
             {meta.icon} {meta.cn}

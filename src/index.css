@@ -236,7 +236,9 @@ body {
 /* 地点自然信息 */
 .geo-info { padding: 2px 18px 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .geo-chip { font-size: 11px; font-weight: 600; color: var(--animal-text-body); background: var(--animal-primary-bg); padding: 4px 10px; border-radius: 12px; white-space: nowrap; }
+.geo-chip-range { background: var(--animal-primary); color: #fff; }
 .geo-hint { width: 100%; font-size: 12px; color: var(--animal-text-secondary); line-height: 1.5; margin-top: 2px; font-weight: 500; }
+.geo-source-hint { font-size: 10px; opacity: 0.75; margin-top: 2px; }
 
 /* ---------- 物种卡片 ---------- */
 .species-card {
@@ -255,6 +257,7 @@ body {
 }
 .species-card .cn-name { font-size: 14px; font-weight: 700; color: var(--animal-text); margin-top: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .species-card .sci-name { font-size: 11px; color: var(--animal-text-secondary); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.species-card .card-meta { font-size: 10px; font-weight: 600; color: var(--animal-text-secondary); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .species-card .card-collected {
   position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%;
   background: var(--animal-warning); color: #fff; font-size: 14px; font-weight: 800;

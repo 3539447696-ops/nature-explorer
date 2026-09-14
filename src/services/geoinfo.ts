@@ -129,6 +129,58 @@ async function fetchElevation(lat: number, lng: number): Promise<number | null> 
   }
 }
 
+/**
+ * 批量获取多个坐标点的海拔（Open-Meteo 支持一次请求携带多个坐标，逗号分隔）。
+ * 用于：给一批物种的真实观测坐标批量查海拔，从而判断该区域是否"山地类"，
+ * 并把每个物种归类到对应的海拔层级。
+ */
+export async function fetchElevationsBatch(
+  points: { lat: number; lng: number }[],
+): Promise<(number | null)[]> {
+  if (points.length === 0) return [];
+  try {
+    const lats = points.map((p) => p.lat.toFixed(4)).join(',');
+    const lngs = points.map((p) => p.lng.toFixed(4)).join(',');
+    const url = `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return points.map(() => null);
+    const json = await res.json();
+    const arr = json.elevation;
+    if (!Array.isArray(arr)) return points.map(() => null);
+    return points.map((_, i) => (typeof arr[i] === 'number' ? Math.round(arr[i]) : null));
+  } catch {
+    return points.map(() => null);
+  }
+}
+
+/** 海拔垂直分层定义：山脚 / 半山 / 山顶 */
+export const ELEVATION_BANDS = [
+  { label: '🏞️ 山脚', min: 0, max: 300 },
+  { label: '🌳 半山', min: 300, max: 800 },
+  { label: '🏔️ 山顶', min: 800, max: Infinity },
+];
+
+/** 根据具体海拔值归类到对应层级标签，如 "🌳 半山(300-800m)" */
+export function getElevationBandLabel(elevationM: number): string {
+  const band =
+    ELEVATION_BANDS.find((b) => elevationM >= b.min && elevationM < b.max) ||
+    ELEVATION_BANDS[ELEVATION_BANDS.length - 1];
+  const rangeText = band.max === Infinity ? `${band.min}m+` : `${band.min}-${band.max}m`;
+  return `${band.label}(${rangeText})`;
+}
+
+/** 判断一组海拔值是否构成"山地地形"：落差 ≥ 300m 视为山地类，
+ * 此时"水平距离"意义不大，应改用海拔分层来呈现每个物种的位置。 */
+export function isMountainousArea(elevations: (number | null)[]): boolean {
+  const valid = elevations.filter((e): e is number => e != null);
+  if (valid.length < 2) return false;
+  const range = Math.max(...valid) - Math.min(...valid);
+  return range >= 300;
+}
+
 /** 获取某坐标的自然背景信息 */
 export async function getGeoInfo(lat: number, lng: number): Promise<GeoInfo> {
   const { latText, lngText } = formatLatLng(lat, lng);

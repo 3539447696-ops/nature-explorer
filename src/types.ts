@@ -47,9 +47,16 @@ export interface Species {
   rank?: string;
   location?: string | null; // 收集时的地点
   collectedAt?: number;     // 收集时间戳
-  // 地图上的展示坐标（前端分布）
+  // 真实观测坐标（来自 iNaturalist observations 接口）
+  lat?: number | null;
+  lng?: number | null;
+  // 地图上的展示坐标（无真实坐标时的散布兜底）
   _lat?: number;
   _lng?: number;
+  // ---- 数据可解释性：让"为什么推荐这个"变得可追溯 ----
+  distanceKm?: number;       // 到中心点的水平距离（平地场景展示用）
+  elevationM?: number;       // 该观测点的海拔（山地场景用于分层）
+  elevationBand?: string;    // 归类后的层级标签，如"🌳半山(300-800m)"（山地场景展示用）
 }
 
 // AI 对话消息

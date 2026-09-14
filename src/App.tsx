@@ -12,9 +12,12 @@ import { AIDrawer } from './components/AIDrawer';
 import { UserDrawer } from './components/UserDrawer';
 import { CommunityDrawer } from './components/CommunityDrawer';
 import { SharePanel } from './components/SharePanel';
-import { fetchNearbySpecies, reverseGeocode, type PlaceResult } from './services/inaturalist';
+import {
+  fetchNearbySpecies, reverseGeocode, isScenicAreaName, haversineDistanceKm, RADIUS_BY_SCENE,
+  type PlaceResult,
+} from './services/inaturalist';
 import { CollectionService } from './services/collection';
-import { getGeoInfo, type GeoInfo } from './services/geoinfo';
+import { getGeoInfo, fetchElevationsBatch, isMountainousArea, getElevationBandLabel, type GeoInfo } from './services/geoinfo';
 import { FILTERS, DEFAULT_LATLNG, getTaxonMeta, countByTaxon, pickBalancedSample } from './constants';
 import type { Species } from './types';
 
@@ -96,19 +99,50 @@ export default function App() {
   }, [userId, showAuth]);
 
   /* ---------- 物种加载 ---------- */
-  const loadSpecies = useCallback(async (lat: number, lng: number, flt: string) => {
+  // 记录本次实际生效的搜索半径 + 是否山地分层模式，供标题区展示范围说明
+  const [rangeInfo, setRangeInfo] = useState<{ radiusKm: number; isMountainous: boolean } | null>(null);
+
+  const loadSpecies = useCallback(async (lat: number, lng: number, flt: string, placeName?: string | null) => {
     setLoadingSpecies(true);
     setTrayOpen(true);
     setShowAllSpecies(false); // 新一批数据，重新从"精选"视图开始看
-    const DEFAULT_RADIUS = 30;
-    const result = await fetchNearbySpecies(lat, lng, DEFAULT_RADIUS, flt);
-    setSpecies(result.data);
+
+    // 场景化半径：景区/自然地物用更大范围覆盖整个景区，城市/日常场景贴合"步行可达"直觉
+    const isScenic = isScenicAreaName(placeName);
+    const baseRadius = isScenic ? RADIUS_BY_SCENE.scenic : RADIUS_BY_SCENE.city;
+
+    const result = await fetchNearbySpecies(lat, lng, baseRadius, flt);
+    let data = result.data;
+
+    // 用真实观测坐标批量查海拔 → 判断是否山地地形 → 给每个物种标注"距离"或"海拔层级"
+    const withCoords = data.filter((s) => s.lat != null && s.lng != null);
+    let mountainous = false;
+    if (withCoords.length > 0) {
+      const elevations = await fetchElevationsBatch(withCoords.map((s) => ({ lat: s.lat!, lng: s.lng! })));
+      mountainous = isMountainousArea(elevations);
+      const elevationMap = new Map<string, number>();
+      withCoords.forEach((s, i) => {
+        if (elevations[i] != null) elevationMap.set(s.id, elevations[i]!);
+      });
+      data = data.map((s) => {
+        if (s.lat == null || s.lng == null) return s;
+        const elevation = elevationMap.get(s.id);
+        if (mountainous && elevation != null) {
+          return { ...s, elevationM: elevation, elevationBand: getElevationBandLabel(elevation) };
+        }
+        const distanceKm = haversineDistanceKm(lat, lng, s.lat, s.lng);
+        return { ...s, distanceKm: Math.round(distanceKm * 10) / 10 };
+      });
+    }
+
+    setSpecies(data);
     setLoadingSpecies(false);
+    setRangeInfo({ radiusKm: result.usedRadiusKm ?? baseRadius, isMountainous: mountainous });
     if (result.source === 'fallback') {
       Notification.info({ message: '未能连接实时数据库', description: '已展示离线示例物种' });
-    } else if (result.data.length === 0) {
+    } else if (data.length === 0) {
       Notification.info('这附近暂无记录，换个位置试试～');
-    } else if (result.usedRadiusKm && result.usedRadiusKm > DEFAULT_RADIUS) {
+    } else if (result.usedRadiusKm && result.usedRadiusKm > baseRadius) {
       // 触发了半径智能降级：告知用户数据来自更大范围，避免"这也算附近？"的困惑
       Notification.info(`这附近记录较少，已自动扩大搜索范围到 ${result.usedRadiusKm}km 🔍`);
     }
@@ -121,7 +155,7 @@ export default function App() {
       setGeoInfo(null);
       const name = await reverseGeocode(lat, lng);
       setLocationName(name);
-      loadSpecies(lat, lng, filter);
+      loadSpecies(lat, lng, filter, name);
       getGeoInfo(lat, lng).then(setGeoInfo);
     };
     if (!navigator.geolocation) {
@@ -147,7 +181,7 @@ export default function App() {
     setGeoInfo(null);
     const name = await reverseGeocode(c.lat, c.lng);
     setLocationName(name);
-    loadSpecies(c.lat, c.lng, filter);
+    loadSpecies(c.lat, c.lng, filter, name);
     getGeoInfo(c.lat, c.lng).then(setGeoInfo);
   }, [filter, loadSpecies]);
 
@@ -159,13 +193,15 @@ export default function App() {
     setCenter([lat, lng]);
     setGeoInfo(null);
     Notification.info('正在探索这个地点…');
+    let name: string | null;
     if (presetName) {
+      name = presetName;
       setLocationName(presetName);
     } else {
-      const name = await reverseGeocode(lat, lng);
+      name = await reverseGeocode(lat, lng);
       setLocationName(name);
     }
-    loadSpecies(lat, lng, filter);
+    loadSpecies(lat, lng, filter, name);
     getGeoInfo(lat, lng).then(setGeoInfo);
   }, [filter, loadSpecies]);
 
@@ -180,8 +216,8 @@ export default function App() {
   /* ---------- 切换分类 ---------- */
   const changeFilter = useCallback((f: string) => {
     setFilter(f);
-    if (center) loadSpecies(center[0], center[1], f);
-  }, [center, loadSpecies]);
+    if (center) loadSpecies(center[0], center[1], f, locationName);
+  }, [center, loadSpecies, locationName]);
 
   /* ---------- 打开物种详情 ---------- */
   const openDetail = useCallback((s: Species) => {
@@ -329,7 +365,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 地点自然信息 */}
+        {/* 地点自然信息 + 当前搜索范围说明（解决"为什么附近有这个物种"的困惑） */}
         {geoInfo && (
           <div className="geo-info">
             <span className="geo-chip">🧭 {geoInfo.latText}, {geoInfo.lngText}</span>
@@ -337,7 +373,15 @@ export default function App() {
               <span className="geo-chip">⛰️ 海拔 {geoInfo.elevation} m</span>
             )}
             <span className="geo-chip">{geoInfo.climateZone}</span>
+            {rangeInfo && (
+              <span className="geo-chip geo-chip-range">
+                🔍 搜索范围 {rangeInfo.radiusKm}km{rangeInfo.isMountainous ? '（按海拔分层）' : ''}
+              </span>
+            )}
             <div className="geo-hint">🌿 {geoInfo.climateHint}</div>
+            <div className="geo-hint geo-source-hint">
+              📊 以下物种数据来自 iNaturalist 全球公民科学社区的真实观测记录
+            </div>
           </div>
         )}
         <div className="tray-list">

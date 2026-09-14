@@ -62,39 +62,61 @@ export interface NearbyResult {
   usedRadiusKm?: number; // 实际生效的搜索半径（触发智能扩大后会 > 传入值），供 UI 提示
 }
 
+// 场景化半径基准：城市/日常场景符合"步行可达"直觉；景区本身范围大，需要更大覆盖
+export const RADIUS_BY_SCENE = { city: 3, scenic: 15 } as const;
+
+// 半径升档序列：数据太稀疏时，沿着这个阶梯逐级扩大，而不是简单乘固定倍数
+// （因为基准从3/15起步，乘倍数扩大幅度不够；这个序列能同时兼顾两种起点）
+const RADIUS_ESCALATION = [3, 8, 15, 30, 50, 100];
+function getNextRadius(current: number): number | null {
+  const next = RADIUS_ESCALATION.find((r) => r > current);
+  return next ?? null;
+}
+
 const MIN_ACCEPTABLE_SPECIES = 15; // 少于这个数量视为"太稀疏"，触发智能扩大半径
 
 /** 获取坐标附近被观测到的物种（按观测次数排序 → 当地常见/代表性物种）。
- * 内置"半径智能降级"：默认半径数据太少时，自动扩大范围重试一次，
+ * 内置"半径智能降级"：数据太少时，沿升档序列自动扩大范围重试，
  * 避免数据本就稀疏的地区（如国内大部分非热门区域）出现"附近空空如也"。 */
 export async function fetchNearbySpecies(
   lat: number,
   lng: number,
-  radiusKm = 30,
+  radiusKm = RADIUS_BY_SCENE.city,
   iconicTaxon: string | null = null,
 ): Promise<NearbyResult> {
-  const first = await queryNearbySpecies(lat, lng, radiusKm, iconicTaxon);
-  if (first.source !== 'inat' || first.data.length >= MIN_ACCEPTABLE_SPECIES || radiusKm >= 100) {
-    return { ...first, usedRadiusKm: radiusKm };
+  let current = radiusKm;
+  let result = await queryNearbySpecies(lat, lng, current, iconicTaxon);
+
+  // 数据太稀疏 → 沿升档序列逐级扩大，最多尝试到 100km 封顶
+  while (result.source === 'inat' && result.data.length < MIN_ACCEPTABLE_SPECIES) {
+    const next = getNextRadius(current);
+    if (next == null) break;
+    console.info(`[iNaturalist] ${current}km 内仅 ${result.data.length} 种，自动扩大到 ${next}km 重试`);
+    const expanded = await queryNearbySpecies(lat, lng, next, iconicTaxon);
+    current = next;
+    if (expanded.data.length > result.data.length) result = expanded;
+    else break; // 扩大后也没变多，说明这片区域本身数据就是这么稀疏，停止继续扩大
   }
-  // 数据太稀疏 → 自动扩大半径重试一次（最大不超过 100km，避免"附近"失真太多）
-  const expandedRadius = Math.min(Math.round(radiusKm * 2.5), 100);
-  console.info(`[iNaturalist] ${radiusKm}km 内仅 ${first.data.length} 种，自动扩大到 ${expandedRadius}km 重试`);
-  const expanded = await queryNearbySpecies(lat, lng, expandedRadius, iconicTaxon);
-  if (expanded.data.length > first.data.length) {
-    return { ...expanded, usedRadiusKm: expandedRadius };
-  }
-  return { ...first, usedRadiusKm: radiusKm };
+  return { ...result, usedRadiusKm: current };
 }
 
-/** 单次查询（内部函数，被 fetchNearbySpecies 的降级逻辑复用） */
+/**
+ * 单次查询（内部函数，被 fetchNearbySpecies 的降级逻辑复用）。
+ * 采用"双请求"策略，兼顾数据准确性与真实坐标：
+ * ① 主请求 species_counts —— 拿到"准确的历史观测总次数"（这是权威统计值，
+ *    展示给用户的"观测43次"必须来自这里，不能用下面第二个请求自己数，
+ *    因为第二个请求只拿了最多 200 条最新记录，数出来的次数会被截断、偏低）。
+ * ② 辅助请求 observations —— 拿一批真实观测记录，取每个物种"最热门一条"的
+ *    真实坐标，用于计算距离/海拔分层。这个请求失败不影响主流程，只是没有
+ *    真实坐标（会走地图散布兜底），核心的物种列表和观测次数依然完整可用。
+ */
 async function queryNearbySpecies(
   lat: number,
   lng: number,
   radiusKm: number,
   iconicTaxon: string | null,
 ): Promise<NearbyResult> {
-  const params = new URLSearchParams({
+  const baseParams: Record<string, string> = {
     lat: lat.toFixed(5),
     lng: lng.toFixed(5),
     radius: String(radiusKm),
@@ -102,23 +124,56 @@ async function queryNearbySpecies(
     // 国内观测密度远低于欧美，只卡 research 会过滤掉大量真实记录。
     quality_grade: 'research,needs_id',
     locale: 'zh-CN',
-    per_page: '100', // 上限从 50 提升到 100，配合下方分类均衡采样使用
-    order: 'desc',
-    order_by: 'count',
-  });
-  if (iconicTaxon && iconicTaxon !== 'all') params.set('iconic_taxa', iconicTaxon);
+  };
+  if (iconicTaxon && iconicTaxon !== 'all') baseParams.iconic_taxa = iconicTaxon;
 
-  const url = `${INAT_BASE}/observations/species_counts?${params.toString()}`;
+  const countsParams = new URLSearchParams({ ...baseParams, per_page: '100', order: 'desc', order_by: 'count' });
+  const obsParams = new URLSearchParams({ ...baseParams, per_page: '200', photos: 'true', order: 'desc', order_by: 'votes' });
+
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const countsRes = await fetch(`${INAT_BASE}/observations/species_counts?${countsParams}`, { signal: controller.signal });
+    if (!countsRes.ok) throw new Error(`iNaturalist API ${countsRes.status}`);
+    const countsJson = await countsRes.json();
+    if (!countsJson.results || countsJson.results.length === 0) {
+      clearTimeout(timeout);
+      return { data: [], source: 'inat-empty' };
+    }
+
+    // 辅助请求：构建 taxonId → 真实坐标 的映射（失败/超时也无妨，只是拿不到坐标）
+    const coordMap = new Map<number, { lat: number; lng: number }>();
+    try {
+      const obsRes = await fetch(`${INAT_BASE}/observations?${obsParams}`, { signal: controller.signal });
+      if (obsRes.ok) {
+        const obsJson = await obsRes.json();
+        const obsResults: any[] = obsJson.results || [];
+        for (const obs of obsResults) {
+          const tid = obs.taxon?.id;
+          if (!tid || coordMap.has(tid)) continue;
+          let obsLat: number | null = null;
+          let obsLng: number | null = null;
+          if (obs.geojson && Array.isArray(obs.geojson.coordinates)) {
+            obsLng = Number(obs.geojson.coordinates[0]);
+            obsLat = Number(obs.geojson.coordinates[1]);
+          } else if (typeof obs.location === 'string' && obs.location.includes(',')) {
+            const [la, ln] = obs.location.split(',').map(Number);
+            obsLat = la;
+            obsLng = ln;
+          }
+          if (obsLat != null && obsLng != null && !isNaN(obsLat) && !isNaN(obsLng)) {
+            coordMap.set(tid, { lat: obsLat, lng: obsLng });
+          }
+        }
+      }
+    } catch {
+      // 坐标增强失败，忽略即可，物种列表仍完整
+    }
     clearTimeout(timeout);
-    if (!res.ok) throw new Error(`iNaturalist API ${res.status}`);
-    const json = await res.json();
-    if (!json.results || json.results.length === 0) return { data: [], source: 'inat-empty' };
-    return { data: json.results.map(normalizeSpeciesCount), source: 'inat' };
+
+    const data = countsJson.results.map((item: any) => normalizeSpeciesCount(item, coordMap));
+    return { data, source: 'inat' };
   } catch (err) {
     clearTimeout(timeout);
     console.warn('[iNaturalist] 请求失败，使用离线数据:', (err as Error).message);
@@ -126,11 +181,12 @@ async function queryNearbySpecies(
   }
 }
 
-function normalizeSpeciesCount(item: any): Species {
+function normalizeSpeciesCount(item: any, coordMap?: Map<number, { lat: number; lng: number }>): Species {
   const t = item.taxon || {};
   const photo = t.default_photo
     ? (t.default_photo.medium_url || t.default_photo.url || '').replace('square', 'medium')
     : null;
+  const coord = coordMap?.get(t.id);
   return {
     id: 'inat-' + t.id,
     taxonId: t.id,
@@ -138,10 +194,30 @@ function normalizeSpeciesCount(item: any): Species {
     sci_name: t.name,
     taxon: t.iconic_taxon_name || 'Animalia',
     photo,
-    count: item.count || 0,
+    count: item.count || 0, // 权威准确的历史观测总次数（来自 species_counts）
     wiki: t.wikipedia_summary ? stripHtml(t.wikipedia_summary) : null,
     rank: t.rank,
+    lat: coord?.lat ?? null,
+    lng: coord?.lng ?? null,
   };
+}
+
+/** 计算两点间球面距离（公里），用于展示"距中心点约 Xkm" */
+export function haversineDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/** 判断一个地名是否为"自然景区类型"（山川湖泊/公园/保护区等），用于决定搜索半径档位。 */
+export function isScenicAreaName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  return AMAP_NATURAL_KEYWORDS.some((k) => name.includes(k));
 }
 
 /** 获取单个物种详情（含维基百科简介、保护状态等） */
