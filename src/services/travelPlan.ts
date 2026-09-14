@@ -10,7 +10,7 @@ import { generateTravelNarrative } from './ai';
  * 复用阶段 A 已经建好的工具函数（海拔批量查询/山地判断/均衡采样），不重复造轮子。 */
 
 // 攻略场景用比"探索模式"更大的搜索半径，因为要覆盖整个目的地区域（比如一整个景区/城市）
-const PLAN_RADIUS_KM = 20;
+export const PLAN_RADIUS_KM = 20;
 
 export async function generateTravelPlan(request: TravelPlanRequest): Promise<TravelPlan> {
   const { destination, lat, lng, month, days } = request;

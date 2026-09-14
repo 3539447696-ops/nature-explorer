@@ -12,7 +12,7 @@ interface Props {
   location: string | null;
   centerLat: number | null;
   centerLng: number | null;
-  onExploreDestination: (lat: number, lng: number, destination: string) => void;
+  onExploreDestination: (plan: TravelPlan) => void;
 }
 
 interface PlanTarget {
@@ -157,7 +157,7 @@ export function AIDrawer({ open, onClose, currentSpecies, location, centerLat, c
               <AIPlanResultCard
                 key={i}
                 plan={m.planData}
-                onExplore={() => onExploreDestination(m.planData!.lat, m.planData!.lng, m.planData!.destination)}
+                onExplore={() => onExploreDestination(m.planData!)}
               />
             );
           }

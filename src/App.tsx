@@ -19,7 +19,8 @@ import {
 import { CollectionService } from './services/collection';
 import { getGeoInfo, fetchElevationsBatch, isMountainousArea, getElevationBandLabel, type GeoInfo } from './services/geoinfo';
 import { FILTERS, DEFAULT_LATLNG, getTaxonMeta, countByTaxon, pickBalancedSample } from './constants';
-import type { Species } from './types';
+import type { Species, TravelPlan } from './types';
+import { PLAN_RADIUS_KM } from './services/travelPlan';
 
 // 底部列表默认精选数量：旅行者需要"快速掌握重点"，不是"看到全部"
 const TOP_N_SPECIES = 12;
@@ -219,11 +220,34 @@ export default function App() {
     if (center) loadSpecies(center[0], center[1], f, locationName);
   }, [center, loadSpecies, locationName]);
 
-  /* ---------- AI 向导内跳转到攻略目的地探索（供 AIDrawer 里"开始探索"按钮调用） ---------- */
-  const handleExplorePlanDestination = useCallback((lat: number, lng: number, destination: string) => {
+  /* ---------- AI 向导内跳转到攻略目的地探索（知行合一：直接用攻略里已生成的推荐物种数据，
+   * 而不是重新查询"当前"数据——保证用户在地图上看到的，正是攻略里推荐的那些真实观测点。 ---------- */
+  const handleExplorePlanDestination = useCallback((plan: TravelPlan) => {
     setAiOpen(false);
-    exploreLocation(lat, lng, destination);
-  }, [exploreLocation]);
+    setShowMapHint(false);
+    setCenter([plan.lat, plan.lng]);
+    setLocationName(plan.destination);
+    setFilter('all');
+    setShowAllSpecies(false);
+    setTrayOpen(true);
+
+    // 攻略里的物种已经带真实坐标（来自 fetchSeasonalSpecies），直接注入，不重新发请求
+    const planSpecies = plan.isMountainous
+      ? plan.elevationBands.flatMap((b) => b.species)
+      : plan.speciesHighlights;
+    setSpecies(planSpecies);
+    setRangeInfo({ radiusKm: PLAN_RADIUS_KM, isMountainous: plan.isMountainous });
+
+    // 气候/海拔信息攻略里也已经有了，直接用现成数据组装，不必再查一次
+    setGeoInfo({
+      latText: `${Math.abs(plan.lat).toFixed(2)}°${plan.lat >= 0 ? 'N' : 'S'}`,
+      lngText: `${Math.abs(plan.lng).toFixed(2)}°${plan.lng >= 0 ? 'E' : 'W'}`,
+      elevation: plan.elevation,
+      climateZone: plan.climateZone,
+      climateHint: plan.narrative,
+    });
+    Notification.success(`已跳转到「${plan.destination}」，地图上标注的正是攻略推荐的观测点 🗺️`);
+  }, []);
 
   /* ---------- 打开物种详情 ---------- */
   const openDetail = useCallback((s: Species) => {
