@@ -15,8 +15,11 @@ import { SharePanel } from './components/SharePanel';
 import { fetchNearbySpecies, reverseGeocode, type PlaceResult } from './services/inaturalist';
 import { CollectionService } from './services/collection';
 import { getGeoInfo, type GeoInfo } from './services/geoinfo';
-import { FILTERS, DEFAULT_LATLNG, getTaxonMeta, countByTaxon } from './constants';
+import { FILTERS, DEFAULT_LATLNG, getTaxonMeta, countByTaxon, pickBalancedSample } from './constants';
 import type { Species } from './types';
+
+// 底部列表默认精选数量：旅行者需要"快速掌握重点"，不是"看到全部"
+const TOP_N_SPECIES = 12;
 
 export default function App() {
   const { user, loading: authLoading, configured } = useAuth();
@@ -37,6 +40,13 @@ export default function App() {
 
   // 各分类数量统计，用于过滤器 Tag 加实时角标（如"🐦鸟类 23"）
   const taxonCounts = useMemo(() => countByTaxon(species), [species]);
+
+  // 底部列表默认只显示 Top N（分类均衡精选），点击"查看全部"才展开完整列表
+  const [showAllSpecies, setShowAllSpecies] = useState(false);
+  const displaySpecies = useMemo(
+    () => (showAllSpecies ? species : pickBalancedSample(species, TOP_N_SPECIES)),
+    [species, showAllSpecies],
+  );
 
   // 图鉴
   const [collection, setCollection] = useState<Species[]>([]);
@@ -89,6 +99,7 @@ export default function App() {
   const loadSpecies = useCallback(async (lat: number, lng: number, flt: string) => {
     setLoadingSpecies(true);
     setTrayOpen(true);
+    setShowAllSpecies(false); // 新一批数据，重新从"精选"视图开始看
     const DEFAULT_RADIUS = 30;
     const result = await fetchNearbySpecies(lat, lng, DEFAULT_RADIUS, flt);
     setSpecies(result.data);
@@ -304,6 +315,11 @@ export default function App() {
         <div className="tray-header">
           <h2 onClick={() => setTrayOpen((v) => !v)}>
             {loadingSpecies ? '正在探索附近的生物…' : locationName ? `${locationName}附近的生物` : '附近的生物'}
+            {!loadingSpecies && species.length > TOP_N_SPECIES && (
+              <span className="tray-subtitle">
+                {showAllSpecies ? ` · 共 ${species.length} 种` : ` · 精选 ${Math.min(TOP_N_SPECIES, species.length)}/${species.length} 种`}
+              </span>
+            )}
           </h2>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <button className="suggestion-chip" onClick={refreshHere}>🔄 刷新</button>
@@ -330,9 +346,16 @@ export default function App() {
           ) : species.length === 0 ? (
             <div className="tray-empty">这附近暂时没有找到记录，试着移动地图或切换分类～</div>
           ) : (
-            species.map((s) => (
-              <SpeciesCard key={s.id} species={s} collected={collectedIds.has(s.id)} onClick={() => openDetail(s)} />
-            ))
+            <>
+              {displaySpecies.map((s) => (
+                <SpeciesCard key={s.id} species={s} collected={collectedIds.has(s.id)} onClick={() => openDetail(s)} />
+              ))}
+              {species.length > TOP_N_SPECIES && (
+                <button className="show-more-btn" onClick={() => setShowAllSpecies((v) => !v)}>
+                  {showAllSpecies ? '▴ 收起，只看精选' : `▾ 查看全部 ${species.length} 种`}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

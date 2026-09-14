@@ -216,9 +216,22 @@ body {
 .tray-handle { width: 46px; height: 5px; border-radius: 3px; background: #d8d2c4; margin: 8px auto 4px; cursor: grab; }
 .tray-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 18px; }
 .tray-header h2 { font-size: 16px; color: var(--animal-text); font-weight: 700; cursor: pointer; }
+.tray-subtitle { font-size: 12px; font-weight: 500; color: var(--animal-text-secondary); }
 .tray-list { display: flex; gap: 12px; overflow-x: auto; padding: 10px 18px 14px; scrollbar-width: none; }
 .tray-list::-webkit-scrollbar { display: none; }
 .tray-empty { color: var(--animal-text-secondary); font-size: 14px; padding: 24px; text-align: center; width: 100%; }
+
+/* "查看全部/收起"：以虚线卡片形态出现在横向列表末尾，暗示"还有更多" */
+.show-more-btn {
+  flex-shrink: 0; width: 100px; height: 158px; border-radius: 14px;
+  background: var(--animal-primary-bg); border: 2px dashed var(--animal-border);
+  color: var(--animal-text-body); font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  cursor: pointer; font-family: inherit; line-height: 1.5; padding: 8px;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+.show-more-btn:hover { background: var(--animal-primary); color: #fff; border-color: var(--animal-primary); }
+.show-more-btn:active { transform: scale(0.96); }
 
 /* 地点自然信息 */
 .geo-info { padding: 2px 18px 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
