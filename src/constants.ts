@@ -36,10 +36,32 @@ export function countByTaxon(species: Species[]): Record<string, number> {
 }
 
 /**
- * 按分类"均衡采样"：轮流从各分类中各取一个物种，而不是简单取前 N 个。
- * 目的：iNaturalist 数据里鸟类观测量通常远超其他类别，简单截取前 N 个
- * 会导致地图上全是鸟类图标，看不到植物/昆虫等其他类别。
- * 组内保持原有顺序（已按观测次数降序），保证轮到的都是该类里最有代表性的。
+ * 把单个分类组重新排列："常见标杆(观测最高) + 特色候选(观测较少但排除孤例)"交替，
+ * 而不是单纯按观测次数从高到低。
+ *
+ * 动机：纯粹"观测次数降序"会导致麻雀、家燕这类"哪里都有"的广布种永远排最前，
+ * 而真正代表"这个地方特色"的物种——因为分布范围窄、观测数据本来就少——
+ * 会被挤到后面甚至被精选列表截断掉。深度旅行者想看的是"来这里才能看到的"，
+ * 不是"哪里都能看到的"，所以每类里除了留一个"最容易遇见的"标杆，
+ * 更应该优先展示观测较少、更有地方特色的候选。
+ */
+function reorderWithFeatured(arr: Species[]): Species[] {
+  if (arr.length <= 2) return arr;
+  const [top, ...rest] = arr;
+  // 排除观测仅 1 次的孤例（可能是误报/迷鸟，数据可信度太低，不适合作为"特色推荐")
+  const pool = rest.filter((s) => (s.count || 0) >= 2);
+  const source = pool.length > 0 ? pool : rest;
+  const leastFirst = source.slice().reverse(); // 从观测最少排到较多，突出"特色"
+  const leftover = rest.filter((s) => !leastFirst.includes(s));
+  return [top, ...leastFirst, ...leftover];
+}
+
+/**
+ * 按分类"均衡+特色化采样"：轮流从各分类中各取一个物种，而不是简单取前 N 个。
+ * 目的一：iNaturalist 数据里鸟类观测量通常远超其他类别，简单截取前 N 个
+ *        会导致地图/列表上全是鸟类，看不到植物/昆虫等其他类别。
+ * 目的二：每个分类内部不是"最常见的排最前"，而是"1个常见标杆 + 若干特色候选"，
+ *        保证精选列表里既有"容易遇见的"也有"这个地方特有的"，不会被大路货物种挤没。
  */
 export function pickBalancedSample(species: Species[], limit: number): Species[] {
   if (species.length <= limit) return species;
@@ -49,7 +71,7 @@ export function pickBalancedSample(species: Species[], limit: number): Species[]
     arr.push(s);
     groups.set(s.taxon, arr);
   }
-  const groupArrays = Array.from(groups.values());
+  const groupArrays = Array.from(groups.values()).map(reorderWithFeatured);
   const result: Species[] = [];
   let round = 0;
   while (result.length < limit) {

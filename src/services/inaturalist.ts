@@ -214,9 +214,21 @@ export function haversineDistanceKm(lat1: number, lng1: number, lat2: number, ln
   return R * c;
 }
 
-/** 判断一个地名是否为"自然景区类型"（山川湖泊/公园/保护区等），用于决定搜索半径档位。 */
+// 强景区标识词：多字组合，语义明确，命中即可判定为景区，误判风险低
+const STRONG_SCENIC_KEYWORDS = ['风景区', '风景名胜区', '国家公园', '自然保护区', '森林公园', '地质公园', '湿地公园', '景区'];
+
+/**
+ * 判断一个地名是否为"自然景区类型"（山川湖泊/公园/保护区等），用于决定搜索半径档位。
+ * 注意：单字自然地物关键词（山/湖/江/河/林/海等）对中国地名很不安全——
+ * 很多城市名字本身就带这些字（"九江市"含"江"、"桂林市"含"林"、"珠海市"含"海"），
+ * 直接用这些单字匹配会把"城市"误判成"景区"。所以：
+ * ① 命中强关键词（"风景区""国家公园"等）→ 直接判定为景区；
+ * ② 命中单字弱关键词，但地名带"市/区/县/镇/乡"等行政区后缀 → 更可能只是城市/行政区名，不采信。
+ */
 export function isScenicAreaName(name: string | null | undefined): boolean {
   if (!name) return false;
+  if (STRONG_SCENIC_KEYWORDS.some((k) => name.includes(k))) return true;
+  if (/[市区县镇乡]/.test(name)) return false;
   return AMAP_NATURAL_KEYWORDS.some((k) => name.includes(k));
 }
 
