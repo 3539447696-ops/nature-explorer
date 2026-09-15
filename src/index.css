@@ -597,8 +597,6 @@ body {
 .oauth-row > * { flex: 1; }
 .auth-switch { text-align: center; margin-top: 16px; font-size: 13px; color: var(--animal-text-secondary); }
 .auth-switch button { color: var(--animal-primary-active); font-weight: 700; background: none; border: none; cursor: pointer; font-family: inherit; font-size: 13px; }
-.auth-skip { text-align: center; margin-top: 12px; }
-.auth-skip button { color: var(--animal-text-secondary); font-size: 12px; background: none; border: none; cursor: pointer; text-decoration: underline; font-family: inherit; }
 
 /* ---------- 通用 ---------- */
 .center-loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--animal-bg); z-index: 8000; }

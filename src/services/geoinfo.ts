@@ -195,3 +195,25 @@ export async function getGeoInfo(lat: number, lng: number): Promise<GeoInfo> {
     climateHint: hint,
   };
 }
+
+/** 基于 IP 的粗略定位（免费、无需 Key，精度只到城市级）。
+ * 用于浏览器精确定位被拒绝/失败时的"次优兜底"——
+ * 至少能落到用户所在的城市附近，而不是永远硬编码跳到北京
+ * （对不在北京、甚至不在国内的访客来说，北京默认位置毫无相关性）。 */
+export async function getIpLocation(): Promise<{ lat: number; lng: number; city: string | null } | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch('https://ipapi.co/json/', { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const lat = Number(json.latitude);
+    const lng = Number(json.longitude);
+    if (isNaN(lat) || isNaN(lng)) return null;
+    const city = [json.city, json.region].filter(Boolean).join(' ') || null;
+    return { lat, lng, city };
+  } catch {
+    return null;
+  }
+}

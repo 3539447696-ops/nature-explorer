@@ -55,12 +55,21 @@ export function AuthPage({ onSkip }: { onSkip: () => void }) {
         <Card>
           <div className="auth-sub">
             {configured
-              ? '登录后，你的自然图鉴会云端同步，换设备也能继续收集 🌏'
+              ? '不用注册也能直接探索附近的动植物；想让图鉴云端同步、换设备也能继续收集，再登录即可 🌏'
               : '当前为本地体验模式（未配置云端），图鉴仅保存在本机。'}
           </div>
 
+          {configured && (
+            // 首次访问者的核心路径：不强制注册就能先看到产品价值，登录留给"想要云同步"的人。
+            // 放在表单最上方、做成醒目的主按钮，而不是页面最下面一行不起眼的小字链接。
+            <Button type="primary" block size="large" onClick={onSkip} style={{ marginBottom: 14 }}>
+              🌿 先逛逛，暂不登录
+            </Button>
+          )}
+
           {configured ? (
             <>
+              <div className="auth-divider">或使用邮箱登录 / 注册</div>
               <div className="auth-field">
                 <label>邮箱</label>
                 <Input
@@ -82,14 +91,7 @@ export function AuthPage({ onSkip }: { onSkip: () => void }) {
               {error && <div className="auth-error">{error}</div>}
               {msg && <div className="auth-msg">{msg}</div>}
 
-              {/* 网络/云端服务不可达时，额外给出醒目的“先逛逛”入口，避免用户卡在这个页面 */}
-              {error.includes('云端服务暂时连接不上') && (
-                <Button block size="large" onClick={onSkip} style={{ marginBottom: 10 }}>
-                  🌿 先逛逛，暂不登录
-                </Button>
-              )}
-
-              <Button type="primary" block size="large" loading={loading} onClick={submit}>
+              <Button block size="large" loading={loading} onClick={submit}>
                 {mode === 'login' ? '登录' : '注册'}
               </Button>
 
@@ -110,12 +112,6 @@ export function AuthPage({ onSkip }: { onSkip: () => void }) {
             <Button type="primary" block size="large" onClick={onSkip}>
               开始探索（本地模式）
             </Button>
-          )}
-
-          {configured && (
-            <div className="auth-skip">
-              <button onClick={onSkip}>先逛逛，暂不登录</button>
-            </div>
           )}
         </Card>
       </div>

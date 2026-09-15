@@ -19,7 +19,7 @@ import {
   type PlaceResult,
 } from './services/inaturalist';
 import { CollectionService } from './services/collection';
-import { getGeoInfo, fetchElevationsBatch, isMountainousArea, getElevationBandLabel, type GeoInfo } from './services/geoinfo';
+import { getGeoInfo, getIpLocation, fetchElevationsBatch, isMountainousArea, getElevationBandLabel, type GeoInfo } from './services/geoinfo';
 import { FILTERS, DEFAULT_LATLNG, getTaxonMeta, countByTaxon, pickBalancedSample, assignRarity } from './constants';
 import type { Species, TravelPlan } from './types';
 import { PLAN_RADIUS_KM } from './services/travelPlan';
@@ -27,13 +27,20 @@ import { PLAN_RADIUS_KM } from './services/travelPlan';
 // 底部列表默认精选数量：旅行者需要"快速掌握重点"，不是"看到全部"
 const TOP_N_SPECIES = 12;
 const ONBOARDING_KEY = 'nature-explorer-onboarding-done';
+// 记住"先逛逛，暂不登录"的选择：避免同一个访客每次刷新/重新打开都要重新点一遍跳过
+const SKIPPED_AUTH_KEY = 'nature-explorer-skipped-auth';
 
 export default function App() {
   const { user, loading: authLoading, configured } = useAuth();
 
-  // 认证门禁：配置了云端且未登录 → 显示登录页（可跳过）
-  const [skippedAuth, setSkippedAuth] = useState(false);
+  // 认证门禁：配置了云端且未登录 → 显示登录页（可跳过）。
+  // 跳过的选择记住在本地，避免同一个访客每次重新打开都要再点一次"先逛逛"。
+  const [skippedAuth, setSkippedAuth] = useState(() => localStorage.getItem(SKIPPED_AUTH_KEY) === '1');
   const showAuth = configured && !user && !skippedAuth;
+  const dismissAuth = useCallback(() => {
+    localStorage.setItem(SKIPPED_AUTH_KEY, '1');
+    setSkippedAuth(true);
+  }, []);
 
   // 地图与数据状态
   const [center, setCenter] = useState<[number, number] | null>(null);
@@ -175,7 +182,10 @@ export default function App() {
     }
   }, []);
 
-  /* ---------- 定位 ---------- */
+  /* ---------- 定位 ----------
+   * 三层兜底：浏览器精确定位（GPS/WiFi）→ 失败后按 IP 估算城市级位置 → 仍失败才退到硬编码默认坐标。
+   * 之前"定位失败"直接跳北京，对不在北京、甚至不在国内的访客毫无意义，还给人第一印象就是"报错"；
+   * 现在中间多一层 IP 兜底，多数情况下至少能落到访客所在城市附近。 */
   const locateUser = useCallback(() => {
     const applyLocation = async (lat: number, lng: number) => {
       setCenter([lat, lng]);
@@ -185,17 +195,48 @@ export default function App() {
       loadSpecies(lat, lng, filter, name);
       getGeoInfo(lat, lng).then(setGeoInfo);
     };
+
+    type FailReason = 'denied' | 'unavailable' | 'timeout' | 'unsupported';
+    const fallbackByIp = async (reason: FailReason) => {
+      const messages: Record<FailReason, string> = {
+        denied: '未获得定位授权，正在按 IP 估算你的大致位置…',
+        unavailable: '设备暂时无法确定精确位置，正在按 IP 估算…',
+        timeout: '定位响应超时，正在按 IP 估算你的大致位置…',
+        unsupported: '当前浏览器不支持定位，正在按 IP 估算…',
+      };
+      Notification.info(messages[reason]);
+      const ip = await getIpLocation();
+      if (ip) {
+        applyLocation(ip.lat, ip.lng);
+      } else {
+        Notification.warning({
+          message: '定位失败，已切换到默认位置（北京）',
+          description: '你可以用上方搜索框直接查找想去的地方～',
+        });
+        applyLocation(DEFAULT_LATLNG[0], DEFAULT_LATLNG[1]);
+      }
+    };
+
     if (!navigator.geolocation) {
-      applyLocation(DEFAULT_LATLNG[0], DEFAULT_LATLNG[1]);
+      fallbackByIp('unsupported');
       return;
     }
+
+    // 先给一句解释性提示，再触发浏览器原生的定位授权弹窗——
+    // 授权弹窗毫无预告地突然弹出，容易让首次访问者本能地点"拒绝"，
+    // 提前说明用途能明显提高授权率，也让随后可能出现的失败提示不那么突兀。
+    Notification.info('正在获取你的位置，帮你探索附近的动植物 🌍');
+
     navigator.geolocation.getCurrentPosition(
       (pos) => applyLocation(pos.coords.latitude, pos.coords.longitude),
-      () => {
-        Notification.warning('定位失败，使用默认位置（北京）');
-        applyLocation(DEFAULT_LATLNG[0], DEFAULT_LATLNG[1]);
+      (err) => {
+        // GeolocationPositionError.code: 1=PERMISSION_DENIED 2=POSITION_UNAVAILABLE 3=TIMEOUT
+        const reason: FailReason = err.code === 1 ? 'denied' : err.code === 2 ? 'unavailable' : 'timeout';
+        fallbackByIp(reason);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      // enableHighAccuracy 关闭：桌面浏览器多数没有 GPS 芯片，强求高精度反而更容易等待超时；
+      // 缩短 timeout 到 8s，失败后更快进入 IP 兜底，减少访客干等的时间。
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
     );
   }, [filter, loadSpecies]);
 
@@ -349,7 +390,7 @@ export default function App() {
     return <div className="center-loading"><Loading /></div>;
   }
   if (showAuth) {
-    return <AuthPage onSkip={() => setSkippedAuth(true)} />;
+    return <AuthPage onSkip={dismissAuth} />;
   }
 
   return (
@@ -557,7 +598,7 @@ export default function App() {
         open={userDrawerOpen}
         onClose={() => setUserDrawerOpen(false)}
         collectionCount={collection.length}
-        onLoginRequest={() => setSkippedAuth(false)}
+        onLoginRequest={() => { localStorage.removeItem(SKIPPED_AUTH_KEY); setSkippedAuth(false); }}
       />
       <CommunityDrawer
         open={communityOpen}

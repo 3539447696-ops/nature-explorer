@@ -83,7 +83,7 @@ const MIN_ACCEPTABLE_SPECIES = 15; // 少于这个数量视为"太稀疏"，触�
 export async function fetchNearbySpecies(
   lat: number,
   lng: number,
-  radiusKm = RADIUS_BY_SCENE.city,
+  radiusKm: number = RADIUS_BY_SCENE.city,
   iconicTaxon: string | null = null,
 ): Promise<NearbyResult> {
   let current = radiusKm;

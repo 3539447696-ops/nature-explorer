@@ -28,7 +28,7 @@ export function TravelPlanForm({ onGenerate, loading }: Props) {
     <div className="travel-plan-form">
       <Card>
         <div className="form-header">
-          <Title level={3}>🗺️ 制定自然探索攻略</Title>
+          <Title size="middle">🗺️ 制定自然探索攻略</Title>
           <p className="form-hint">选好目的地和月份，AI 会基于真实观测数据生成一份自然观察攻略</p>
         </div>
 
